@@ -5,7 +5,7 @@ Workdir mainly for internal usage. Requires internal project credentials for dir
 
 ## Training
 
-Check train-sbatch.sh for all command line parameters. 
+Check train-sbatch.sh for all command line parameters. This example has `--exit-interval 20` so it will terminate after 20 iterations.
 ```
 git clone --recurse-submodules git@github.com:luukkonenr/megatron-workdir-lumi.git
 cd megatron-workdir-lumi/
