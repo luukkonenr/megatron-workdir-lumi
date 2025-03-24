@@ -8,7 +8,7 @@
 #SBATCH --time=01:00:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
-#SBATCH --account=project_462000615
+#SBATCH --account=project_462000353
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
 
@@ -101,21 +101,23 @@ SAVE_INTERVAL=1000
 EVAL_INTERVAL=10000
 EVAL_STEPS=100
 
-
+# https://huggingface.co/HuggingFaceTB/SmolLM2-135M/blob/main/config.json
 if [[ $MODEL_SIZE = "200M" ]]; then #test
-    NHIDDEN=768
-    FFN_HIDDEN_SIZE=3072
-    NLAYERS=12
-    NHEADS=12
-    NUM_KV_HEADS=4 
-
+    NHIDDEN=576
+    FFN_HIDDEN_SIZE=1536
+    NLAYERS=30
+    NHEADS=9
+    NUM_KV_HEADS=3
+    TIE_WORD_EMBEDDINGS=1
+    
 # https://huggingface.co/HuggingFaceTB/SmolLM-360M/blob/main/config.json
-elif [ "$MODEL_SIZE" = "350M" ]; then
+elif [ "$MODEL_SIZE" = "360M" ]; then
     NHIDDEN=960
     FFN_HIDDEN_SIZE=2560
     NLAYERS=32
     NHEADS=15
     NUM_KV_HEADS=5
+    TIE_WORD_EMBEDDINGS=1
 
 # https://huggingface.co/HuggingFaceTB/SmolLM-1.7B/blob/main/config.json
 elif [ "$MODEL_SIZE" = "1.7B" ]; then 
@@ -124,6 +126,7 @@ elif [ "$MODEL_SIZE" = "1.7B" ]; then
     NLAYERS=24
     NHEADS=32
     NUM_KV_HEADS=32
+    TIE_WORD_EMBEDDINGS=1
 
 elif [ "$MODEL_SIZE" = "7B" ]; then
     NHIDDEN=4096
@@ -131,6 +134,7 @@ elif [ "$MODEL_SIZE" = "7B" ]; then
     NLAYERS=32
     NHEADS=32
     NUM_KV_HEADS=8
+    TIE_WORD_EMBEDDINGS=0
 
 elif [ "$MODEL_SIZE" = "33B" ]; then
     NHIDDEN=7168
@@ -138,10 +142,12 @@ elif [ "$MODEL_SIZE" = "33B" ]; then
     NLAYERS=56
     NHEADS=56
     NUM_KV_HEADS=8
+    TIE_WORD_EMBEDDINGS=0
 else
     echo "Unknown model size"
     exit 1
-fi  
+fi
+
 
 GPT_ARGS="$GPT_ARGS --num-layers $NLAYERS \
     --hidden-size $NHIDDEN \
@@ -152,6 +158,11 @@ if [ "$NUM_KV_HEADS" != "$NHEADS" ]; then
     GPT_ARGS="$GPT_ARGS \
     --group-query-attention \
     --num-query-groups $NUM_KV_HEADS \
+    "
+fi
+
+if [ "$TIE_EMBEDDINGS" = "0" ]; then
+    GPT_ARGS="$GPT_ARGS --untie-embeddings-and-output-weights \
     "
 fi
 
@@ -182,7 +193,6 @@ GPT_ARGS="$GPT_ARGS \
     --max-position-embeddings $SEQ_LEN \
     --use-flash-attn \
     --seq-length $SEQ_LEN \
-    --untie-embeddings-and-output-weights \
     --position-embedding-type rope \
     --rotary-base 1000000 \
     --disable-bias-linear \
@@ -284,7 +294,6 @@ echo "START $SLURM_JOBID: $(date)"
 echo "NNODES" $SLURM_NNODES
 echo "CPUS PER TASK" $SLURM_CPUS_PER_TASK
 
-# CONTAINER=/scratch/project_462000353/containers/sif_images/rocm-6.2-python-3.10-pytorch-vllm-te-new.sif
 CONTAINER_BASE=/scratch/project_462000394/containers/for-turkunlp-team/lumi/
 CONTAINER_ID=lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-dockerhash-0fb1415058b3.sif
 CONTAINER=${CONTAINER_BASE}${CONTAINER_ID}
