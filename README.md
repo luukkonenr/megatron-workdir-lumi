@@ -1,11 +1,10 @@
 # megatron-workdir-lumi
 
-Workdir mainly for internal usage. Requires internal project credentials for direct usage. 
-
+Workdir mainly for internal usage. Requires internal project credentials for direct usage. With *353-access you can start a succesfull training started in seconds. 
 
 ## Training
 
-Check train-sbatch.sh for all command line parameters. This example has `--exit-interval 20` so it will terminate after 20 iterations.
+This example has `--exit-interval 20` so it will terminate after 20 iterations. It will can be adapted to your needs. Training scales almost linearly on Llama3.1-8B up to 64 nodes with TP=2, 
 ```
 git clone --recurse-submodules git@github.com:luukkonenr/megatron-workdir-lumi.git
 cd megatron-workdir-lumi/
