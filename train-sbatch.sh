@@ -8,7 +8,7 @@
 #SBATCH --time=01:00:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
-#SBATCH --account=project_462000615
+#SBATCH --account=project_462000353
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
 
