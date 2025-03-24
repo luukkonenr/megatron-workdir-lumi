@@ -1,17 +1,29 @@
 # megatron-workdir-lumi
 
-Workdir mainly for internal usage. Requires internal project credentials for direct usage. 
+Workdir mainly for internal usage. Requires internal project credentials for direct usage. With project *353-access you can start a succesfull training started in seconds. 
 
+## Training
+
+This example has `--exit-interval 20` so it will terminate after 20 iterations. It will can be adapted to your needs. Training scales almost linearly on Llama3.1-8B up to 64 nodes with TP=2, 
 ```
 git clone --recurse-submodules git@github.com:luukkonenr/megatron-workdir-lumi.git
 cd megatron-workdir-lumi/
 sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B
 ```
 
-### Inspecting latest file output 
+Inspect logs 
 `tail -f logs/latest*`
 
-### Simple logfile summary
+
+## Tools 
+### Conversion from huggingface
+`TODO`
+### Conversion to huggingface
+`TODO`
+
+
+### Logfiles
+#### Simple logfile summary
 ```
 module use /appl/local/csc/modulefiles && module load pytorch
 python3 tools/summarize.py --dir logs/ --filter="params=>7.9B" --short # or --csv for easy copy-paste
@@ -21,7 +33,7 @@ Found 2 files
 1  1385.583976  80.242857      0.9783    8192     1        128          16     8  False  bfloat16  None      adam  8192       2       1  None  8.0B 2025-03-24 15:44:55      7
 
 ```
-### Single file inspection
+#### Single file inspection
 ```
 module use /appl/local/csc/modulefiles && module load pytorch
 python3 tools/throughput.py logs/latest.out
@@ -39,7 +51,7 @@ max        | 1385.95    | 80.30      | 0.98
 min        | 1385.01    | 80.20      | 0.98
 ```
 
-### Param comparison of two logfiles
+#### Param comparison of two logfiles
 
 ```
 python3 tools/compare_params.py logs/testrun1.out logs/testerun2.out
