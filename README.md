@@ -12,7 +12,7 @@ cd megatron-workdir-lumi/
 sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B
 ```
 
-Inspect logs 
+Inspecting logs:
 `tail -f logs/latest*`
 
 
@@ -55,7 +55,7 @@ min        | 1385.01    | 80.20      | 0.98
 #### Param comparison of two logfiles
 
 ```
-python3 tools/compare_params.py logs/testrun1.out logs/testerun2.out
+python3 tools/compare_params.py logs/testrun1.out logs/testrun2.out
 num_layers                                     32  24
 global_batch_size                              128  1024
 tensor_model_parallel_size                     4  1
