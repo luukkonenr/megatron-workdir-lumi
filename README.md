@@ -21,35 +21,17 @@ Inspecting logs:
 Megatron offers tools for conversion from Huggingface-format. This is an example of converting Llama3.1-8B to Megatron
 
 * Note: Latest transformers don't work, plausibly due to this [refactor](https://github.com/huggingface/transformers/commit/071a161d3e38f56dbda2743b979f0afeed2cd4f1
-) to`from_pretrained`-method, so you need to run this inside your container: `pip install transformers==4.48.2`
+) to`from_pretrained`-method, so you need to install e.g. `transformers==4.48.2`. Installation is set to run at the start of conversion in `convert_llama3.1-8B.sh`
+
 * Note 2: Currently there seems to be a bug in
 https://github.com/ROCm/Megatron-LM/blob/99bb7a92291528fe713618b355b1b9b31d3b3b9f/megatron/training/arguments.py#L709
 Change that line in megatron/training/arguments.py from 
 `if args.tensor_model_parallel_size > 1` to `if args.tensor_model_parallel_size > 1 and args.num_experts:` to get conversion working.
 
 
-Run conversion with 
-`sbatch convert_llama3.1-8B.sh`
+#### Run conversion:
 
-```
-HF_FORMAT_DIR=/scratch/project_462000353/models/llama31-8b
-TOKENIZER_MODEL=$HF_FORMAT_DIR
-TARGET_PP=1
-TARGET_TP=2
-MEGATRON_FORMAT_DIR=megatron-checkpoints/llama3.1-8B-TP-$TARGET_TP-PP-$TARGET_PP
-export CUDA_DEVICE_MAX_CONNECTIONS=1
-python3 Megatron-LM/tools/checkpoint/convert.py \
-  --model-type GPT \
-  --loader llama_mistral \
-  --model-size llama3-8B \
-  --checkpoint-type 'hf' \
-  --saver mcore \
-  --target-tensor-parallel-size ${TARGET_TP} \
-  --target-pipeline-parallel-size ${TARGET_PP} \
-  --load-dir ${HF_FORMAT_DIR} \
-  --save-dir ${MEGATRON_FORMAT_DIR} \
-  --tokenizer-model ${TOKENIZER_MODEL}
-```
+```sbatch convert_llama3.1-8B.sh```
 
 Then you can start continued pre-training with
 
