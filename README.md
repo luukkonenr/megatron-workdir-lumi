@@ -18,7 +18,36 @@ Inspecting logs:
 
 ## Tools 
 ### Conversion from huggingface
-`TODO`
+
+Megatron offers direct conversion from Huggingface-format. These can be run interactively on a compute node like this: 
+```
+HF_FORMAT_DIR=/scratch/project_462000353/models/llama31-8b
+TOKENIZER_MODEL=$HF_FORMAT_DIR
+TARGET_PP=1
+TARGET_TP=2
+MEGATRON_FORMAT_DIR=megatron-checkpoints/llama3.1-8B-TP-$TARGET_TP-PP-$TARGET_PP
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+python3 Megatron-LM/tools/checkpoint/convert.py \
+  --model-type GPT \
+  --loader llama_mistral \
+  --model-size llama3-8B \
+  --checkpoint-type 'hf' \
+  --saver mcore \
+  --target-tensor-parallel-size ${TARGET_TP} \
+  --target-pipeline-parallel-size ${TARGET_PP} \
+  --load-dir ${HF_FORMAT_DIR} \
+  --save-dir ${MEGATRON_FORMAT_DIR} \
+  --tokenizer-model ${TOKENIZER_MODEL}
+```
+
+Or as slurm batch jobs e.g `sbatch convert_llama3.1-8B.sh`
+
+## \# IMPORTANT NOTE
+Currently there seems to be a bug in
+https://github.com/ROCm/Megatron-LM/blob/99bb7a92291528fe713618b355b1b9b31d3b3b9f/megatron/training/arguments.py#L709
+Change that line in megatron/training/arguments.py from 
+`if args.tensor_model_parallel_size > 1` to `if args.tensor_model_parallel_size > 1 and args.num_experts:` to get conversion working.
+
 ### Conversion to huggingface
 `TODO`
 
@@ -70,3 +99,5 @@ kv_channels                                    128  64
 data_parallel_size                             4  16
 moe_ffn_hidden_size                            14336  8192
 ```
+
+

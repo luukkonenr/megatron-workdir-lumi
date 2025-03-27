@@ -43,12 +43,8 @@ export WORLD_SIZE=$SLURM_NTASKS #This is valid only if ntasks==ngpus
 export CUDA_DEVICE_MAX_CONNECTIONS=1 #This is needed for sequence paralellism
 
 #OMP THREADING
-export OMP_NUM_THREADS=2
-export HSA_ENABLE_SDMA=0
-
-#OMP THREADING
 export OMP_NUM_THREADS=1
-#export HSA_ENABLE_SDMA=1
+export HSA_ENABLE_SDMA=0
 
 #DEBUGGING, INCREASE VERBOSITY IN LOGS
 # export MIOPEN_ENABLE_LOGGING=1
@@ -92,7 +88,8 @@ TP="${TP:-1}"
 CP_SIZE="${CP_SIZE:-1}"
 VPP="${VPP:-1}"
 USE_VPP="${USE_VPP:-0}"
-CKPT_PATH="${CKPT_PATH:-None}"
+LOAD_CKPT_PATH="${LOAD_CKPT_PATH:-None}"
+SAVE_CKPT_PATH="${SAVE_CKPT_PATH:-None}"
 PROFILE="${PROFILE:-0}"
 
 #SAVING AND EVAL
@@ -247,7 +244,6 @@ DATA_ARGS="
     --tokenizer-type HuggingFaceTokenizer \
     --tokenizer-model ${TOKENIZER_MODEL} \
     --dataloader-type single \
-    --save-interval 1000 \
     --eval-interval 10000 \
     --eval-iters 10 \
     --num-workers 2 \
@@ -260,12 +256,18 @@ fi
 if [ "$RECOMPUTATION" = "1" ]; then
     GPT_ARGS="$GPT_ARGS --recompute-activations --recompute-granularity selective"
 fi
-    # --load $CKPT_PATH \
+
 CHECKPOINT_ARGS=""
 CPKT_INTERVAL=1000
-if [ "$CKPT_PATH" != "None" ]; then
+
+if [ "$LOAD_CKPT_PATH" != "None" ]; then
     CHECKPOINT_ARGS="
-    --save $CKPT_PATH \
+    --load $LOAD_CKPT_PATH \
+    "
+fi
+if [ "$SAVE_CKPT_PATH" != "None" ]; then
+    CHECKPOINT_ARGS="$CHECKPOINT_ARGS \
+    --save $SAVE_CKPT_PATH \
     --save-interval $CPKT_INTERVAL \
     "
 fi
@@ -313,3 +315,5 @@ srun --label --cpu-bind=mask_cpu:$BIND_MASK \
     $CMD
 
 echo "END $SLURM_JOBID: $(date)"
+
+singularity exec -B $SINGULARITY_BIND $CONTAINER python3 tools/throughput.py logs/${SLURM_JOB_NAME}-${SLURM_JOBID}.out
