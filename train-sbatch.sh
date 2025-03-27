@@ -5,10 +5,10 @@
 #SBATCH --nodes=2
 #SBATCH --mem=480G
 #SBATCH --partition=dev-g
-#SBATCH --time=01:00:00
+#SBATCH --time=00:25:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
-#SBATCH --account=project_462000353
+#SBATCH --account=project_462000615
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
 
@@ -161,7 +161,7 @@ if [ "$NUM_KV_HEADS" != "$NHEADS" ]; then
     "
 fi
 
-if [ "$TIE_EMBEDDINGS" = "0" ]; then
+if [ "$TIE_WORD_EMBEDDINGS" = "0" ]; then
     GPT_ARGS="$GPT_ARGS --untie-embeddings-and-output-weights \
     "
 fi
@@ -286,7 +286,6 @@ echo '============='
 
 
 c="fe"
-
 # Bind mask for one thread per core
 BIND_MASK="0x${c}000000000000,0x${c}00000000000000,0x${c}0000,0x${c}000000,0x${c},0x${c}00,0x${c}00000000,0x${c}0000000000"
 
@@ -294,42 +293,23 @@ echo "START $SLURM_JOBID: $(date)"
 echo "NNODES" $SLURM_NNODES
 echo "CPUS PER TASK" $SLURM_CPUS_PER_TASK
 
-CONTAINER_BASE=/scratch/project_462000394/containers/for-turkunlp-team/lumi/
-CONTAINER_ID=lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-dockerhash-0fb1415058b3.sif
-CONTAINER=${CONTAINER_BASE}${CONTAINER_ID}
-
-export LD_LIBRARY_PATH=/pfs/lustrep3/scratch/project_462000394/containers/for-turkunlp-team/deps-2025-02-24/shs-libcxi-install/lib:\$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/pfs/lustrep3/scratch/project_462000394/containers/for-turkunlp-team/deps-2025-02-24/libfabric-install-master/lib:\$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/pfs/lustrep3/scratch/project_462000394/containers/for-turkunlp-team/deps-2025-02-24/aws-ofi-rccl2-install:\$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=/pfs/lustrep3/scratch/project_462000394/containers/for-turkunlp-team/deps-2025-02-24/rccl-2025-02-26-85eb1f1/lib:\$LD_LIBRARY_PATH
+CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
 
 export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
 export PWD=(`pwd -P`)
 
-# install libraries
-export PYTHONUSERBASE="pythonuserbase"
-singularity exec -B $PWD $CONTAINER bash -c "\$WITH_CONDA; pip install -U tensorboard; pip install /scratch/project_462000394/containers/for-turkunlp-team/flash_attn-2.7.3-cp312-cp312-linux_x86_64.whl /scratch/project_462000394/containers/for-turkunlp-team/transformer_engine-1.11.0+e7a7f6d-cp312-cp312-linux_x86_64.whl"
-
+# Avoid conflicts with $HOME/.local
+export PYTHONUSERBASE=""
 
 launcher="$PWD/launcher.sh"
-if [ "$SLURM_JOB_PARTITION" = "dev-g" ]; then
-    echo "Lumi dev-g partition is used, CPU binding is not used"
-    srun --label \
-    singularity exec \
-    -B $PWD \
-    $CONTAINER \
-    $launcher \
-    $CMD
-else
-  echo "Using --cpu-bind=mask_cpu:$BIND_MASK"
-    srun --label --cpu-bind=mask_cpu:$BIND_MASK \
+
+echo "Using --cpu-bind=mask_cpu:$BIND_MASK"
+srun --label --cpu-bind=mask_cpu:$BIND_MASK \
     singularity exec \
     -B $PWD \
     -B $SINGULARITY_BIND \
     $CONTAINER \
     $launcher \
     $CMD
-fi
-
 
 echo "END $SLURM_JOBID: $(date)"
