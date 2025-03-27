@@ -51,7 +51,11 @@ python3 Megatron-LM/tools/checkpoint/convert.py \
   --tokenizer-model ${TOKENIZER_MODEL}
 ```
 
+Then you can start continued pre-training with
 
+```
+sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B LOAD_CKPT_PATH="megatron-checkpoints/llama3.1-8B-TP-2-PP-1" SAVE_CKPT_PATH="megatron-checkpoints/llama3.1-8B-TP-2-PP-1"
+```
 
 ### Conversion to huggingface
 `TODO`
