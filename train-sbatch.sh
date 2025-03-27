@@ -17,16 +17,11 @@ echo "Starting bash script"
 module purge
 module load LUMI/24.03 partition/G
 
-#SET PATHS
-BASE_DIR=(`pwd`)
-EXPERIMENT_DIR="$BASE_DIR/workdir"
 
 DATA_ROOT="/scratch/project_462000353/data/processed-llama31/merged"
 CACHE_PATH="${DATA_ROOT}/index-cache"
 DATA_PATH="0.7 ${DATA_ROOT}/fi-culturax 0.25 ${DATA_ROOT}/fineweb-edu-deduplicated 0.04 ${DATA_ROOT}/starcoder 0.01 ${DATA_ROOT}/xling"
 
-CHECKPOINT_PATH="$EXPERIMENT_DIR/checkpoints"
-TENSORBOARD_PATH="$EXPERIMENT_DIR/tensorboard/$SLURM_JOB_NAME-$SLURM_JOBID"
 TOKENIZER_MODEL="/scratch/project_462000353/models/llama31-8b"
 
 ln -sf ${SLURM_JOB_NAME}-${SLURM_JOBID}.out logs/latest.out
@@ -53,7 +48,7 @@ export PYTHONWARNINGS=ignore
 # export NCCL_DEBUG=INFO
 # export RCCL_KERNEL_COLL_TRACE_ENABLE=1 
 # export NCCL_DEBUG_SUBSYS=ALL 
-# export NCCL_DEBUG_FILE=$EXPERIMENT_DIR/nccl-debug-${SLURM_JOB_NAME}-${SLURM_JOBID}.log #Move verbose nccl logging to its own file
+# export NCCL_DEBUG_FILE=nccl-debug/nccl-debug-${SLURM_JOB_NAME}-${SLURM_JOBID}.log #Move verbose nccl logging to its own file
 
 #TransformerEngine
 export NVTE_FLASH_ATTN=1
@@ -227,6 +222,7 @@ OPTIMIZER_ARGS=" \
     --weight-decay 1.0e-1 \
     --lr-warmup-fraction .005 \
     "
+
 TENSORBOARD_PATH="tensorboard/$SLURM_JOB_NAME"
 OUTPUT_ARGS=" \
     --async-save \
@@ -309,7 +305,6 @@ echo "Using --cpu-bind=mask_cpu:$BIND_MASK"
 srun --label --cpu-bind=mask_cpu:$BIND_MASK \
     singularity exec \
     -B $PWD \
-    -B $SINGULARITY_BIND \
     $CONTAINER \
     $launcher \
     $CMD

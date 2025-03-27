@@ -32,8 +32,9 @@ Change that line in megatron/training/arguments.py from
 #### Run conversion:
 
 ```sbatch convert_llama3.1-8B.sh```
+There are some error messages after the conversion has run, but won't affect the saved checkpoints.
 
-Then you can start continued pre-training with
+You can start continued pre-training with newly converted checkpoints with
 
 ```
 sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B LOAD_CKPT_PATH="megatron-checkpoints/llama3.1-8B-TP-2-PP-1" SAVE_CKPT_PATH="megatron-checkpoints/llama3.1-8B-TP-2-PP-1"
