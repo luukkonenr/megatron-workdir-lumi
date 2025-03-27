@@ -21,7 +21,7 @@ Inspecting logs:
 Megatron offers tools for conversion from Huggingface-format. This is an example of converting Llama3.1-8B to Megatron
 
 * Note: Latest transformers don't work, plausibly due to this [refactor](https://github.com/huggingface/transformers/commit/071a161d3e38f56dbda2743b979f0afeed2cd4f1
-) to`from_pretrained`-method, so you need to install e.g. `transformers==4.48.2`. Installation is set to run at the start of conversion in `convert_llama3.1-8B.sh`
+) to`from_pretrained`-method, so you need to install e.g. `transformers==4.48.2`. Installation is set to run at the start of conversion in [convert_llama3.1-8B.sh](convert_llama3.1-8B.sh)
 
 * Note 2: Currently there seems to be a bug in
 https://github.com/ROCm/Megatron-LM/blob/99bb7a92291528fe713618b355b1b9b31d3b3b9f/megatron/training/arguments.py#L709
