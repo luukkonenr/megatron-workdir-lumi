@@ -225,14 +225,12 @@ OPTIMIZER_ARGS=" \
 
 TENSORBOARD_PATH="tensorboard/$SLURM_JOB_NAME"
 OUTPUT_ARGS=" \
-    --async-save \
     --eval-interval $EVAL_INTERVAL \
     --eval-iters $EVAL_STEPS \
     --tensorboard-dir $TENSORBOARD_PATH \
     --tensorboard-queue-size 5 \
     --log-throughput \
     --log-progress \
-    --no-save-optim \
     --log-interval $LOG_INTERVAL \
     "
 
