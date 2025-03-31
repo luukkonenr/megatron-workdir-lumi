@@ -37,7 +37,7 @@ Megatron offers tools for conversion from Huggingface-format. This is an example
 
 #### Run conversion:
 
-```sbatch convert_llama3.1-8B_hf_to_meg.sh```
+```sbatch scripts/convert_llama3.1-8B_hf_to_meg.sh```
 There are some error messages after the conversion has run, but won't affect the saved checkpoints.
 
 You can start continued pre-training with newly converted checkpoints with
@@ -47,9 +47,8 @@ sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B LOAD_CKPT_PATH="megatron-checkpoints/l
 ```
 
 ### Conversion to huggingface
-1) Apply patch under `patches` for ROCM/Megatron-LM to fix issues (also aforementioned). 
-2) Copy tools/saver_llama_mistral.py to Megatron-LM/tools/checkpoint/
-3) Run `bash convert_llama3.1-8B_meg_to_hf.sh <path_to_checkpoint>`
+1) Copy tools/saver_llama_mistral.py to Megatron-LM/tools/checkpoint/
+2) Run `sbatch scripts/convert_llama3.1-8B_meg_to_hf.sh <path_to_checkpoint>`
 
 This should work for other model sizes too and for both model types, with tied or untied output embeddings.
 
