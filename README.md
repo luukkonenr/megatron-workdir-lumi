@@ -47,7 +47,7 @@ sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B LOAD_CKPT_PATH="megatron-checkpoints/l
 ```
 
 ### Conversion to huggingface
-1) Copy tools/saver_llama_mistral.py to Megatron-LM/tools/checkpoint/
+1) Copy tools/saver_llama_mistral.py to Megatron-LM/tools/checkpoint/ `cp tools/saver_llama_mistral.py Megatron-LM/tools/checkpoint/`
 2) Run `sbatch scripts/convert_llama3.1-8B_meg_to_hf.sh <path_to_checkpoint>`
 
 This should work for other model sizes too and for both model types, with tied or untied output embeddings.
