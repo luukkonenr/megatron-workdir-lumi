@@ -1,6 +1,6 @@
 # megatron-workdir-lumi
 
-Workdir mainly for internal usage. Requires internal project credentials for direct usage. With project *353-access you can start a succesfull training started in seconds. 
+Workdir mainly for internal usage. Requires internal project credentials for direct usage. With project *353-access you can get a succesfull training started in seconds. 
 
 ## Training
 
