@@ -9,6 +9,8 @@ Example uses Llama3.1-tokenizer, which is 128k tokens.
 ```
 git clone --recurse-submodules https://github.com/luukkonenr/megatron-workdir-lumi.git
 cd megatron-workdir-lumi/
+patch -p1 patches/checkpoint_conversion.diff
+
 sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B
 ```
 
@@ -22,11 +24,6 @@ Megatron offers tools for conversion from Huggingface-format. This is an example
 
 * Note: Latest transformers don't work, plausibly due to this [refactor](https://github.com/huggingface/transformers/commit/071a161d3e38f56dbda2743b979f0afeed2cd4f1
 ) to`from_pretrained`-method, so you need to install e.g. `transformers==4.48.2`. Installation is set to run at the start of conversion in [convert_llama3.1-8B.sh](convert_llama3.1-8B.sh)
-
-* Note 2: Currently there seems to be a bug in
-https://github.com/ROCm/Megatron-LM/blob/99bb7a92291528fe713618b355b1b9b31d3b3b9f/megatron/training/arguments.py#L709
-Change that line in megatron/training/arguments.py from 
-`if args.tensor_model_parallel_size > 1` to `if args.tensor_model_parallel_size > 1 and args.num_experts:` to get conversion working.
 
 
 #### Run conversion:
@@ -96,4 +93,13 @@ data_parallel_size                             4  16
 moe_ffn_hidden_size                            14336  8192
 ```
 
+
+
+
+## Known Issues: 
+*  Currently there seems to be a bug in
+https://github.com/ROCm/Megatron-LM/blob/99bb7a92291528fe713618b355b1b9b31d3b3b9f/megatron/training/arguments.py#L709
+Change that line in megatron/training/arguments.py from 
+`if args.tensor_model_parallel_size > 1` to `if args.tensor_model_parallel_size > 1 and args.num_experts:` to get conversion working.
+* Conversion from HF -> Meg succeeds but there is some error message that pops up after the conversion is run, causing the finalize-step to crash the run. Checkpoint seems to be still okay. 
 
