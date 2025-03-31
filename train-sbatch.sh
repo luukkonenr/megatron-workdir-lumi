@@ -2,7 +2,7 @@
 #SBATCH --job-name=test-rocm-6.2-new-cxi
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --mem=480G
 #SBATCH --partition=dev-g
 #SBATCH --time=00:25:00

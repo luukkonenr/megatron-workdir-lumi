@@ -1,0 +1,26 @@
+Submodule Megatron-LM contains modified content
+diff --git a/Megatron-LM/megatron/training/arguments.py b/Megatron-LM/megatron/training/arguments.py
+index d8d08f61..aeb29aac 100644
+--- a/Megatron-LM/megatron/training/arguments.py
++++ b/Megatron-LM/megatron/training/arguments.py
+@@ -706,7 +706,7 @@ def validate_args(args, defaults={}):
+     if args.num_experts is not None:
+         assert args.spec is None, "Model Spec must be None when using MoEs"
+     
+-    if args.tensor_model_parallel_size > 1:
++    if args.tensor_model_parallel_size > 1 and args.num_experts:
+             assert args.sequence_parallel, \
+                 "When using MoE and tensor parallelism, sequence parallelism must be used."
+                 
+diff --git a/Megatron-LM/tools/checkpoint/loader_mcore.py b/Megatron-LM/tools/checkpoint/loader_mcore.py
+index 9185969b..86948641 100644
+--- a/Megatron-LM/tools/checkpoint/loader_mcore.py
++++ b/Megatron-LM/tools/checkpoint/loader_mcore.py
+@@ -93,6 +93,7 @@ def _load_checkpoint(queue, args):
+     margs.use_legacy_models = False
+     margs.transformer_impl = args.loader_transformer_impl
+ 
++    margs.tensor_model_parallel_size = checkpoint_args.tensor_model_parallel_size
+     def check_for_arg(arg_name, default=None):
+         if getattr(margs, arg_name, None) is None:
+             if default is not None:

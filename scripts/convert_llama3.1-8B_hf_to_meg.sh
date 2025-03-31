@@ -19,7 +19,9 @@ MEGATRON_FORMAT_DIR=megatron-checkpoints/llama3.1-8B-TP-$TARGET_TP-PP-$TARGET_PP
 export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-# Remove pip install if you already did it
+
+# This is a workaround for the issue with the container not having the correct version of transformers
+# so we need to install it to userspace
 singularity exec $CONTAINER /bin/bash -c "pip install transformers==4.48.2;
   python3 Megatron-LM/tools/checkpoint/convert.py \
     --model-type GPT \

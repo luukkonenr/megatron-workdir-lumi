@@ -1,4 +1,6 @@
 logs/
-pythonuserbase/
+.pythonuserbase/
 tensorboard/
 **/__pycache__/
+megatron-checkpoints/
+.untracked/
