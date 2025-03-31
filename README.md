@@ -4,8 +4,17 @@ Workdir mainly for internal usage. Requires internal project credentials for dir
 
 ## Training
 
-This example has `--exit-interval 20` so it will terminate after 20 iterations. It will can be adapted to your needs. Training scales almost linearly on Llama3.1-8B up to 64 nodes with TP=2. 
-Example uses Llama3.1-tokenizer, which is 128k tokens.
+This example has `--exit-interval 20` so it will terminate after 20 iterations. It can be adapted to your needs. 
+Example uses Llama3.1-tokenizer, which has a vocab size of approximately 128k tokens.
+
+This training setup scales almost linearly up to 64 nodes with TP=2. 
+
+| TGS | NODES |
+|------|----------|
+| 1403.29749  | 16 |
+| 1381.689321  | 32 |
+| 1314.907184  | 64 | 
+
 ```
 git clone --recurse-submodules https://github.com/luukkonenr/megatron-workdir-lumi.git
 cd megatron-workdir-lumi/
