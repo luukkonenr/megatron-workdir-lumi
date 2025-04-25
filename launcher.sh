@@ -4,7 +4,7 @@
 # does not work on LUMI as Lustre does not provide the necessary features.
 export MIOPEN_USER_DB_PATH="/tmp/$(whoami)-miopen-cache-$SLURM_NODEID"
 export MIOPEN_CUSTOM_CACHE_DIR=$MIOPEN_USER_DB_PATH
-export NCCL_NCHANNELS_PER_PEER=32
+#export NCCL_NCHANNELS_PER_PEER=32 # causes unstable gradients with pipeline parallelism
 
 # Report affinity
 #echo "Rank $SLURM_PROCID --> $(taskset -p \$\$)"
