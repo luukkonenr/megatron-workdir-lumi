@@ -18,7 +18,7 @@ This training setup scales almost linearly up to 64 nodes with TP=2.
 ```
 git clone --recurse-submodules https://github.com/luukkonenr/megatron-workdir-lumi.git
 cd megatron-workdir-lumi/
-patch -p1 patches/checkpoint_conversion.diff
+patch -p1 -i patches/checkpoint_conversion.diff
 
 sbatch train-sbatch.sh TP=2 MODEL_SIZE=7B
 ```
