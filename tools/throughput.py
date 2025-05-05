@@ -93,6 +93,17 @@ def extract_values(filepath):
     seq_len = args["seq_length"]
     batch_size = args["global_batch_size"]
     tgs = [int(seq_len)*int(batch_size) / t[ELAPSED_TIME_LABEL]*1000 / WORLD_SIZE  for t in throughput]
+    loss = get_key("lm loss", throughput)
+
+    # make loss to be tuple of starting loss and ending loss, including nans
+    loss = np.array(loss)
+    loss_has_nan = (loss == -1).any()
+    if loss_has_nan:
+        loss_start = np.nan
+        loss_end = np.nan
+    else:
+        loss_start = loss[0]
+        loss_end = loss[-1]
     tflops = get_key(TFLOPS_LABEL, throughput)
     mem_usages = get_key("mem usages", throughput)
     # check if fsdp-key exists
@@ -117,6 +128,8 @@ def extract_values(filepath):
         "fsdp": args['fsdp'],
         "precision": args['params_dtype'],
         "fp8": args['fp8'],
+        "rope_fusion": args['apply_rope_fusion'],
+        "loss": (loss_start, loss_end),
         "optimizer": args['optimizer'],
         "embedding_size": args['max_position_embeddings'],
         "transformer_impl": args['transformer_impl'],

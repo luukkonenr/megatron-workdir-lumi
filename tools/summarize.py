@@ -7,7 +7,7 @@ import numpy as np
 def summarize_list_variables(values):
     for key, _ in values.items():
         if isinstance(values[key], list):
-            values[key] = np.mean(values[key])
+            values[key] = np.median(values[key])
         elif key == "num_model_params":
             values[key] = f"{values[key]/1e9:.1f}B"
     return values
