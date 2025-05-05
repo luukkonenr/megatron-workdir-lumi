@@ -39,11 +39,13 @@ def parse_args(lines):
         arguments = {}
         for line in lines:
             if line:
-                line = line.split(":")[-1]
-                parts = ITER_SPLIT_RE.split(line)
-                key = parts[0].strip()
-                value = parts[1].strip()
-                arguments[key] = value
+                try:
+                    parts = ITER_SPLIT_RE.split(line.split(":")[-1])
+                    key = parts[0].strip()
+                    value = parts[1].strip()
+                    arguments[key] = value
+                except:
+                    print(f"Failed to grep arguments from line: \"{line}\"")
         return arguments
 
 def parse_iteration(line):
