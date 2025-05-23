@@ -70,7 +70,7 @@ def extract_params(lines):
     params = sum(params.values())
     return params
 
-def extract_values(filepath):
+def extract_values(filepath, return_loss_min_max=True):
     lines = read_file(filepath)
     args = parse_args(lines)
     # print(args['profile'])
@@ -113,7 +113,8 @@ def extract_values(filepath):
         args['fsdp'] = False 
     elif fsdp_key in args:
         args['fsdp'] = args[fsdp_key]
-
+    if return_loss_min_max:
+        loss = (loss_start, loss_end)
 
     
     result = {
@@ -129,7 +130,7 @@ def extract_values(filepath):
         "precision": args['params_dtype'],
         "fp8": args['fp8'],
         "rope_fusion": args['apply_rope_fusion'],
-        "loss": (loss_start, loss_end),
+        "loss": loss,
         "optimizer": args['optimizer'],
         "embedding_size": args['max_position_embeddings'],
         "transformer_impl": args['transformer_impl'],
@@ -138,7 +139,8 @@ def extract_values(filepath):
         "recompute_granularity": args['recompute_granularity'],
         "num_model_params": num_model_params,
         "timestamp": time_created,
-        "iters": len(tgs),
+        "log_lines": len(tgs),
+        "log_interval": args['log_interval'],
         "data_path": args['data_path'],
         "filename": filepath}
 
@@ -147,7 +149,7 @@ def extract_values(filepath):
    
 
 def main(argv):
-    values, iters = extract_values(argv[1])
+    values, log_lines = extract_values(argv[1])
      ### print relevant args 
     print()
     print(f"File: {values['filename']}")
@@ -166,9 +168,9 @@ def main(argv):
     header_format = "{:<10} | {:<10} | {:<10} | {:<10}"
     header = header_format.format(" ", "TGS", "TFLOPs", "mem usages")
     separator = "-" * len(header)
-    if iters > 1:
+    if log_lines > 1:
         print("")
-        print(f"Skipped first {SKIPPED_LINES} iterations. Averaging over {iters} iterations")
+        print(f"Skipped first {SKIPPED_LINES} iterations. Averaging over {log_lines} log lines")
         print(separator)
         print(header)
         print(separator)
@@ -177,7 +179,7 @@ def main(argv):
         print(row_format.format("max", np.max(values['tgs']), np.max(values['tflops']), np.max(values['mem_usages'])))
         print(row_format.format("min", np.min(values['tgs']), np.min(values['tflops']), np.min(values['mem_usages'])))
     else:
-        print(f"Found {iters} iters, not enough")
+        print(f"Found {log_lines} logs lines, not enough")
     
 
 if __name__ == "__main__":

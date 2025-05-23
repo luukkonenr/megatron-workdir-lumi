@@ -80,12 +80,12 @@ def main():
     result = []
     for file in files:
         try:
-            values, iters = extract_values(file)
+            values, log_lines  = extract_values(file)
             if values['tgs'] == []:
                 continue
             else:
                 values = summarize_list_variables(values)
-                values["iters"] = iters
+                values["log_lines"] = log_lines
                 result.append(values)
             assert False
         except Exception as e:

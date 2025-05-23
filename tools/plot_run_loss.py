@@ -7,11 +7,11 @@ import numpy as np
 def main():
 
     filepath = sys.argv[1]
-    vals = extract_values(filepath, False)[0]
+    vals, log_lines = extract_values(filepath, False)
 
     y = vals['loss']
     n = len(y)
-    x = np.arange(0, n) * 10
+    x = np.arange(0, n) * int(vals['log_interval'])
     x = x * int(vals['batch_size']) * int(vals['seq_len'])
 
     # Create the plot
