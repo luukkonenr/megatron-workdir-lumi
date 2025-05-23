@@ -2,10 +2,10 @@
 #SBATCH --job-name=test-moe
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=1
+#SBATCH --nodes=64
 #SBATCH --mem=480G
-#SBATCH --partition=dev-g
-#SBATCH --time=00:10:00
+#SBATCH --partition=standard-g
+#SBATCH --time=48:00:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
 #SBATCH --account=project_462000615
@@ -39,47 +39,11 @@ export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_PORT=9999
 export WORLD_SIZE=$SLURM_NTASKS #This is valid only if ntasks==ngpus
 export CUDA_DEVICE_MAX_CONNECTIONS=1 #This is needed for sequence paralellism
-
-
-# model:
-#   d_model: 2048
-#   n_heads: 16
-#   n_layers: 16
-#   mlp_ratio: 1
-#   weight_tying: false
-#   alibi: false
-#   rope: true
-#   flash_attention: true
-#   attention_dropout: 0.0
-#   attention_layer_norm: true
-#   include_bias: false
-#   block_type: moe
-#   layer_norm_type: rms
-#   layer_norm_with_affine: true
-#   bias_for_layer_norm: false
-#   attention_layer_norm_with_affine: true
-#   activation_type: swiglu
-#   residual_dropout: 0.0
-#   embedding_dropout: 0.0
-#   max_sequence_length: 4096
-#   vocab_size: 50280
-#   embedding_size: 50304
-#   eos_token_id: 0
-#   pad_token_id: 1
-#   init_device: meta
-#   init_fn: normal
-#   init_std: 0.02
-#   init_cutoff_factor: 3
-#   moe_top_k: 8
-#   moe_num_experts: 64
-#   moe_dropless: true
-#   moe_mlp_impl: sparse
-#   moe_zloss_weight: 0.001
-#   moe_loss_weight: 0.01
+export NVTE_FLASH_ATTN=1
 
 # All parameters from https://arxiv.org/pdf/2409.02060
 
-MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1}
+MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-2}
 GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-1024}
 LR=${LR:-4e-4}
 MIN_LR=${MIN_LR:-4e-5}
@@ -87,27 +51,26 @@ SEQ_LEN="${SEQ_LEN:-4096}"
 PAD_LEN=4096
 TP=${TP:-1}
 ETP=${ETP:-1}
-PP=${PP:-1}
+PP=${PP:-2}
 CP=${CP:-1}
 EP=${EP:-1}
 SP=true
 DO=true
 FL=true
 SFT=false
-FUSED_PADDED_MLA_ATTENTION=${FUSED_PADDED_MLA_ATTENTION:-false}
 ATTENTION_SINK_K=${ATTENTION_SINK_K:-0}
 WINDOW_SIZE=${WINDOW_SIZE:-none}
 TRAIN_ITERS=23842 # 100B tokens
-LR_WARMUP_ITERS=2000 # from olmoe
+LR_WARMUP_ITERS=200 # 2000 in olmoe
 LR_DECAY_ITERS=$(( ${TRAIN_ITERS} - ${LR_WARMUP_ITERS}))
-SAVE_INTERVAL=10
+SAVE_INTERVAL=2385
 CHECKPOINT_PATH=checkpoint-${SLURM_JOBID}
 
 #OMP THREADING
 export OMP_NUM_THREADS=1
 export HSA_ENABLE_SDMA=0
 
-MODEL_SIZE=${MODEL_SIZE:-"tiny"} # 16B, 236B, 671B.
+MODEL_SIZE=${MODEL_SIZE:-"1B-7B"} 
 
 if [ $MODEL_SIZE =  "1B-7B" ]; then
     HIDDEN_SIZE=2048
@@ -116,16 +79,10 @@ if [ $MODEL_SIZE =  "1B-7B" ]; then
     NUM_LAYERS=${NUM_LAYERS:-16}
     MOE_INTERMEDIATE_SIZE=$INTERMEDIATE_SIZE
     MAX_POSITION_EMBEDDINGS=${SEQ_LEN:-4096}
-    EXTRA_VOCAB_SIZE=0
-    # KV_LORA_RANK=128
-    # QK_NOPE_HEAD_DIM=32
-    # QK_ROPE_HEAD_DIM=16
-    # V_HEAD_DIM=32
     ROPE_THETA=10000
-    SCALE_FACTOR=40 # ROTARY SCALING FACTOR
+    SCALE_FACTOR=1 # ROTARY SCALING FACTOR
     NUM_EXPERTS=64
     ROUTER_TOPK=8
-    # NUM_SHARED_EXPERTS=2
     MOE_LAYER_FREQ=1
     
     moe_options=" \
@@ -135,10 +92,10 @@ if [ $MODEL_SIZE =  "1B-7B" ]; then
 fi
 if [ $MODEL_SIZE =  "tiny" ]; then
     HIDDEN_SIZE=2048
-    INTERMEDIATE_SIZE=704
+    INTERMEDIATE_SIZE=1024
     NUM_ATTN_HEADS=16
     NUM_LAYERS=${NUM_LAYERS:-16}
-    MOE_INTERMEDIATE_SIZE=704
+    MOE_INTERMEDIATE_SIZE=$INTERMEDIATE_SIZE
     MAX_POSITION_EMBEDDINGS=${SEQ_LEN:-4096}
     EXTRA_VOCAB_SIZE=0
     # KV_LORA_RANK=128
@@ -147,7 +104,7 @@ if [ $MODEL_SIZE =  "tiny" ]; then
     # QK_ROPE_HEAD_DIM=16
     # V_HEAD_DIM=32
     ROPE_THETA=10000
-    SCALE_FACTOR=40 # ROTARY SCALING FACTOR
+    SCALE_FACTOR=1 # ROTARY SCALING FACTOR
     NUM_EXPERTS=64
     ROUTER_TOPK=8
     # NUM_SHARED_EXPERTS=2
@@ -174,6 +131,9 @@ comm_overlap_option=" \
         
         # --max-padding-length ${PAD_LEN} \
 megatron_options="  \
+	--use-flash-attn \
+    --sequence-parallel \
+    --context-parallel-size $CP \
     --use-distributed-optimizer \
 	${data_args} \
 	--log-throughput \
@@ -204,9 +164,9 @@ megatron_options="  \
         --ffn-hidden-size ${INTERMEDIATE_SIZE} \
         --seq-length ${SEQ_LEN} \
         --max-position-embeddings ${MAX_POSITION_EMBEDDINGS} \
-        --log-interval 1 \
-        --eval-interval 10000 \
-        --eval-iters -1 \
+        --log-interval 10 \
+        --eval-interval 1000 \
+        --eval-iters 50 \
         --save-interval ${SAVE_INTERVAL} \
         --ckpt-format torch \
         --tensor-model-parallel-size ${TP} \
@@ -228,10 +188,9 @@ megatron_options="  \
         $USE_LEGACY_GROUPED_GEMM_OPTION \
         --distributed-timeout-minutes 60 \
         --save ${CHECKPOINT_PATH} \
-        --eod-mask-loss \
-        --exit-interval 10 \
         --bf16 \
         "
+        # --eod-mask-loss \
         # --extra-vocab-size ${EXTRA_VOCAB_SIZE} \
     # --enable-shared-expert \
     # --num-shared-experts ${NUM_SHARED_EXPERTS} \
