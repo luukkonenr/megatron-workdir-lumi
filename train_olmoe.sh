@@ -77,16 +77,17 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1 #This is needed for sequence paralellism
 #   moe_zloss_weight: 0.001
 #   moe_loss_weight: 0.01
 
+# All parameters from https://arxiv.org/pdf/2409.02060
 
 MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1}
-GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-128}
-LR=${LR:-1e-5}
-MIN_LR=${MIN_LR:-1e-6}
-SEQ_LEN="${SEQ_LEN:-2048}"
+GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-1024}
+LR=${LR:-4e-4}
+MIN_LR=${MIN_LR:-4e-5}
+SEQ_LEN="${SEQ_LEN:-4096}"
 PAD_LEN=4096
 TP=${TP:-1}
 ETP=${ETP:-1}
-PP=${PP:-1}  
+PP=${PP:-1}
 CP=${CP:-1}
 EP=${EP:-1}
 SP=true
@@ -96,8 +97,8 @@ SFT=false
 FUSED_PADDED_MLA_ATTENTION=${FUSED_PADDED_MLA_ATTENTION:-false}
 ATTENTION_SINK_K=${ATTENTION_SINK_K:-0}
 WINDOW_SIZE=${WINDOW_SIZE:-none}
-TRAIN_ITERS=${TRAIN_ITERS:-4000}
-LR_WARMUP_ITERS=2
+TRAIN_ITERS=23842 # 100B tokens
+LR_WARMUP_ITERS=2000 # from olmoe
 LR_DECAY_ITERS=$(( ${TRAIN_ITERS} - ${LR_WARMUP_ITERS}))
 SAVE_INTERVAL=10
 CHECKPOINT_PATH=checkpoint-${SLURM_JOBID}
@@ -106,14 +107,14 @@ CHECKPOINT_PATH=checkpoint-${SLURM_JOBID}
 export OMP_NUM_THREADS=1
 export HSA_ENABLE_SDMA=0
 
-MODEL_SIZE=${MODEL_SIZE:-"1B-7B"} # 16B, 236B, 671B.
+MODEL_SIZE=${MODEL_SIZE:-"tiny"} # 16B, 236B, 671B.
 
 if [ $MODEL_SIZE =  "1B-7B" ]; then
     HIDDEN_SIZE=2048
+    INTERMEDIATE_SIZE=1024
     NUM_ATTN_HEADS=16
     NUM_LAYERS=${NUM_LAYERS:-16}
-    INTERMEDIATE_SIZE=2736
-    MOE_INTERMEDIATE_SIZE=704
+    MOE_INTERMEDIATE_SIZE=$INTERMEDIATE_SIZE
     MAX_POSITION_EMBEDDINGS=${SEQ_LEN:-4096}
     EXTRA_VOCAB_SIZE=0
     # KV_LORA_RANK=128
@@ -124,7 +125,7 @@ if [ $MODEL_SIZE =  "1B-7B" ]; then
     SCALE_FACTOR=40 # ROTARY SCALING FACTOR
     NUM_EXPERTS=64
     ROUTER_TOPK=8
-    NUM_SHARED_EXPERTS=2
+    # NUM_SHARED_EXPERTS=2
     MOE_LAYER_FREQ=1
     
     moe_options=" \
@@ -132,6 +133,32 @@ if [ $MODEL_SIZE =  "1B-7B" ]; then
         --moe-router-group-topk 1
     "
 fi
+if [ $MODEL_SIZE =  "tiny" ]; then
+    HIDDEN_SIZE=2048
+    INTERMEDIATE_SIZE=704
+    NUM_ATTN_HEADS=16
+    NUM_LAYERS=${NUM_LAYERS:-16}
+    MOE_INTERMEDIATE_SIZE=704
+    MAX_POSITION_EMBEDDINGS=${SEQ_LEN:-4096}
+    EXTRA_VOCAB_SIZE=0
+    # KV_LORA_RANK=128
+    # QK_NOPE_HEAD_DIM=32*
+
+    # QK_ROPE_HEAD_DIM=16
+    # V_HEAD_DIM=32
+    ROPE_THETA=10000
+    SCALE_FACTOR=40 # ROTARY SCALING FACTOR
+    NUM_EXPERTS=64
+    ROUTER_TOPK=8
+    # NUM_SHARED_EXPERTS=2
+    MOE_LAYER_FREQ=1
+    
+    moe_options=" \
+        --moe-router-num-groups ${EP} \
+        --moe-router-group-topk 1
+    "
+fi
+
 
 
 comm_overlap_option=" \
@@ -162,7 +189,7 @@ megatron_options="  \
         --adam-beta2 0.95 \
         --weight-decay 0.1 \
         --clip-grad 1.0 \
-        --init-method-std 0.008 \
+        --init-method-std 0.02 \
         --attention-dropout 0.0 \
         --hidden-dropout 0.0 \
         --dataloader-type cyclic \
@@ -209,6 +236,7 @@ megatron_options="  \
     # --enable-shared-expert \
     # --num-shared-experts ${NUM_SHARED_EXPERTS} \
 
+    # --moe-shared-expert-intermediate-size  $((${NUM_SHARED_EXPERTS} * ${MOE_INTERMEDIATE_SIZE})) \
 moe_options=" \
     ${moe_options} \
     --moe-grouped-gemm \
@@ -216,7 +244,6 @@ moe_options=" \
     --attention-sink-k ${ATTENTION_SINK_K} \
     --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
     --moe-layer-freq ${MOE_LAYER_FREQ} \
-    --moe-shared-expert-intermediate-size  $((${NUM_SHARED_EXPERTS} * ${MOE_INTERMEDIATE_SIZE})) \
     --moe-router-load-balancing-type aux_loss \
     --moe-router-topk ${ROUTER_TOPK} \
     ${moe_permute_fustion_options} \
@@ -228,7 +255,18 @@ moe_options=" \
     --expert-model-parallel-size ${EP} \
     --expert-tensor-parallel-size ${ETP} \
     "
-    
+if [ $AC = full ]; then
+    activation_checkpoint_options=" \
+		    --recompute-method ${RECOMPUTE_METHOD} \
+		    --recompute-granularity full \
+            --recompute-num-layers ${RECOMPUTE_NUM_LAYERS}"
+elif [ $AC = sel ]; then
+    activation_checkpoint_options=" \
+        --recompute-activations"
+elif [ $AC = none ]; then
+    activation_checkpoint_options=" \
+    "
+fi
     # --kv-channels ${V_HEAD_DIM} "
     # --kv-lora-rank ${KV_LORA_RANK} \
     # --qk-head-dim ${QK_NOPE_HEAD_DIM} \
