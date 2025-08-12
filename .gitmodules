@@ -3,4 +3,4 @@
 	url = https://github.com/ROCm/Megatron-LM
 [submodule "lm-evaluation-harness"]
 	path = lm-evaluation-harness
-	url = git@github.com:yuzc19/lm-evaluation-harness.git
+	url = git@github.com:luukkonenr/lm-evaluation-harness.git
