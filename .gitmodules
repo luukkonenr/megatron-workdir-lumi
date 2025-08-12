@@ -1,6 +1,6 @@
 [submodule "Megatron-LM"]
 	path = Megatron-LM
-	url = https://github.com/ROCm/Megatron-LM
+	url = git@github.com:LumiOpen/Megatron-LM.git
 [submodule "lm-evaluation-harness"]
 	path = lm-evaluation-harness
 	url = git@github.com:luukkonenr/lm-evaluation-harness.git
