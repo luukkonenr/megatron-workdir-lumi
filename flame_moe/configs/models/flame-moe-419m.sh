@@ -11,4 +11,4 @@ export EXPERT_MODEL_PARALLEL_SIZE=8
 export TRAIN_ITERS=5685
 export SAVE_INTERVAL=568
 export EVAL_INTERVAL=568
-sbatch --job-name=flame-moe-419m --nodes=4 scripts/training/flame-moe.sh
+sbatch --job-name=flame-moe-419m --nodes=8 flame_moe/lumi_train.sh

@@ -23,11 +23,16 @@ MODEL_ARGS=(
     --moe-shared-expert-intermediate-size $((2 * MOE_FFN_HIDDEN_SIZE))
     --moe-layer-freq $MOE_LAYER_FREQ
     --moe-grouped-gemm
-    # --moe-router-dtype fp32 # Not available on ROCM/Megatron-LM
+    # --moe-use-legacy-grouped-gemm
+    --moe-router-dtype fp32           # Doesn't find suitable algorithms on LUMI
+    --no-gradient-accumulation-fusion   # Doesn't find suitable algorithms on LUMI
+    --no-rope-fusion
     --moe-router-pre-softmax
     --moe-router-score-function softmax
     --moe-aux-loss-coeff 0.01
     --moe-z-loss-coeff 0.001
+
+    --use-flash-attn
 
     # Regularization
     --hidden-dropout 0.0
@@ -48,6 +53,7 @@ INFRA_ARGS=(
     --use-distributed-optimizer
     --overlap-grad-reduce
     --overlap-param-gather
+    --ddp-bucket-size 629145600 
     --moe-token-dispatcher-type alltoall
     --distributed-timeout-minutes 30
     --bf16
@@ -73,12 +79,12 @@ DATA_ARGS=(
 SAVE_ARGS=(
     --log-interval 5
     --log-throughput
-    # --save $SSD_WEIGHTS
-    # --save-interval $SAVE_INTERVAL
-    # --load $SSD_WEIGHTS
+    --save $SAVE_DIR
+    --save-interval $SAVE_INTERVAL
+    --load $SAVE_DIR
     --eval-interval $EVAL_INTERVAL
     # --wandb-save-dir $SSD_WEIGHTS
     # --wandb-project $WANDB_PROJECT
     # --wandb-exp-name $SLURM_JOB_ID
-    # --tensorboard-dir $SSD_WEIGHTS
+    --tensorboard-dir $SAVE_DIR/tensorboard
 )
