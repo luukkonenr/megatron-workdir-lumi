@@ -70,7 +70,7 @@ def extract_params(lines):
     params = sum(params.values())
     return params
 
-def extract_values(filepath, return_loss_min_max=True):
+def extract_values(filepath, return_loss_min_max=True, *extra_args):
     lines = read_file(filepath)
     args = parse_args(lines)
     # print(args['profile'])
@@ -117,6 +117,7 @@ def extract_values(filepath, return_loss_min_max=True):
         loss = (loss_start, loss_end)
 
     
+
     result = {
         "tgs": tgs,
         "tflops": tflops,
@@ -142,8 +143,12 @@ def extract_values(filepath, return_loss_min_max=True):
         "log_lines": len(tgs),
         "log_interval": args['log_interval'],
         "data_path": args['data_path'],
-        "filename": filepath}
-
+        "filename": filepath, }
+    
+    # add optional args from args
+    extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args }
+    result.update(extra_args)
+    
     return result, len(tgs)
         
    
