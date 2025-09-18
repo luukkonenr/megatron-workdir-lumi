@@ -2,13 +2,13 @@
 #SBATCH --job-name=test-moe
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=64
+#SBATCH --nodes=1
 #SBATCH --mem=480G
-#SBATCH --partition=standard-g
-#SBATCH --time=48:00:00
+#SBATCH --partition=dev-g
+#SBATCH --time=00:10:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
-#SBATCH --account=project_462000615
+#SBATCH --account=project_462000353
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
 
@@ -22,7 +22,7 @@ ln -sf ${SLURM_JOB_NAME}-${SLURM_JOBID}.err logs/latest.err
 
 DATASET="/scratch/project_462000353/data/nemotron-cc/tokenized-gemma-3/high-actual"
 export HF_HOME="/scratch/project_462000353/hf_cache"
-TOKENIZER_MODEL="google/gemma-3-27b-pt"
+TOKENIZER_MODEL="google/gemma-3-4b-pt"
 data_args=" \
     --data-path ${DATASET} \
     --tokenizer-type HuggingFaceTokenizer \
@@ -44,14 +44,14 @@ export NVTE_FLASH_ATTN=1
 # All parameters from https://arxiv.org/pdf/2409.02060
 
 MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-2}
-GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-1024}
+GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-32}
 LR=${LR:-4e-4}
 MIN_LR=${MIN_LR:-4e-5}
 SEQ_LEN="${SEQ_LEN:-4096}"
 PAD_LEN=4096
 TP=${TP:-1}
 ETP=${ETP:-1}
-PP=${PP:-2}
+PP=${PP:-1}
 CP=${CP:-1}
 EP=${EP:-1}
 SP=true
@@ -76,7 +76,7 @@ if [ $MODEL_SIZE =  "1B-7B" ]; then
     HIDDEN_SIZE=2048
     INTERMEDIATE_SIZE=1024
     NUM_ATTN_HEADS=16
-    NUM_LAYERS=${NUM_LAYERS:-16}
+    NUM_LAYERS=${NUM_LAYERS:-4}
     MOE_INTERMEDIATE_SIZE=$INTERMEDIATE_SIZE
     MAX_POSITION_EMBEDDINGS=${SEQ_LEN:-4096}
     ROPE_THETA=10000
@@ -84,10 +84,12 @@ if [ $MODEL_SIZE =  "1B-7B" ]; then
     NUM_EXPERTS=64
     ROUTER_TOPK=8
     MOE_LAYER_FREQ=1
-    
+    NUM_SHARED_EXPERTS=2
     moe_options=" \
         --moe-router-num-groups ${EP} \
-        --moe-router-group-topk 1
+        --moe-router-group-topk 1 \
+        --enable-shared-expert \
+        --num-shared-experts ${NUM_SHARED_EXPERTS} \
     "
 fi
 if [ $MODEL_SIZE =  "tiny" ]; then
@@ -107,7 +109,7 @@ if [ $MODEL_SIZE =  "tiny" ]; then
     SCALE_FACTOR=1 # ROTARY SCALING FACTOR
     NUM_EXPERTS=64
     ROUTER_TOPK=8
-    # NUM_SHARED_EXPERTS=2
+    NUM_SHARED_EXPERTS=2
     MOE_LAYER_FREQ=1
     
     moe_options=" \
@@ -164,7 +166,7 @@ megatron_options="  \
         --ffn-hidden-size ${INTERMEDIATE_SIZE} \
         --seq-length ${SEQ_LEN} \
         --max-position-embeddings ${MAX_POSITION_EMBEDDINGS} \
-        --log-interval 10 \
+        --log-interval 1 \
         --eval-interval 1000 \
         --eval-iters 50 \
         --save-interval ${SAVE_INTERVAL} \
@@ -192,15 +194,13 @@ megatron_options="  \
         "
         # --eod-mask-loss \
         # --extra-vocab-size ${EXTRA_VOCAB_SIZE} \
-    # --enable-shared-expert \
-    # --num-shared-experts ${NUM_SHARED_EXPERTS} \
 
     # --moe-shared-expert-intermediate-size  $((${NUM_SHARED_EXPERTS} * ${MOE_INTERMEDIATE_SIZE})) \
+    # --attention-sink-k ${ATTENTION_SINK_K} \
 moe_options=" \
     ${moe_options} \
     --moe-grouped-gemm \
     --qk-layernorm \
-    --attention-sink-k ${ATTENTION_SINK_K} \
     --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
     --moe-layer-freq ${MOE_LAYER_FREQ} \
     --moe-router-load-balancing-type aux_loss \
@@ -252,7 +252,7 @@ export PWD=(`pwd -P`)
 export PYTHONUSERBASE=""
 
 launcher="$PWD/launcher.sh"
-program=Megatron-LM/pretrain_gpt.py
+program=Megatron-LM/pretrain_flame_moe.py
 
 echo "Using --cpu-bind=mask_cpu:$BIND_MASK"
 srun --label --cpu-bind=mask_cpu:$BIND_MASK \

@@ -55,7 +55,8 @@ INFRA_ARGS=(
     --overlap-param-gather
     --ddp-bucket-size 629145600 
     --moe-token-dispatcher-type alltoall
-    --distributed-timeout-minutes 30
+    --distributed-timeout-minutes 45
+    --ckpt-format torch
     --bf16
 )
 
