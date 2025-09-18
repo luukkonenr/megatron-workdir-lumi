@@ -4,9 +4,10 @@
 #SBATCH --ntasks-per-node=8
 #SBATCH --gpus-per-node=8
 #SBATCH --mem=480G
-#SBATCH --partition=dev-g
-##SBATCH --partition=standard-g
-#SBATCH --time=0-00:15:00
+##SBATCH --partition=dev-g
+##SBATCH --time=0-02:00:00
+#SBATCH --partition=standard-g
+#SBATCH --time=0-12:00:00
 #SBATCH --exclusive
 #SBATCH --account=project_462000353
 #SBATCH -o logs/%x-%j.out
@@ -75,9 +76,9 @@ source flame_moe/configs/flame_moe.sh
 #####################
 ### < BOILERPLATE /> ###
 
-# program=Megatron-LM/pretrain_flame_moe.py
+program=Megatron-LM/pretrain_flame_moe.py
 # program=Megatron-LM-nvidia/pretrain_gpt.py
-program=Megatron-LM-IFU/pretrain_gpt.py
+# program=Megatron-LM-IFU/pretrain_gpt.py
 
 export ROCM_GPU_ARCH_OVERRIDE="gfx90a"  # or your actual arch like gfx908, gfx906, etc.
 # export HIPBLASLT_FORCE_ENABLE_UNSUPPORTED=1
