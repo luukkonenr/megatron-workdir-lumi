@@ -3,4 +3,5 @@ logs/
 tensorboard/
 **/__pycache__/
 megatron-checkpoints/
+flame_moe/data/
 .untracked/

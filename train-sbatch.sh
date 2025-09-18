@@ -5,10 +5,10 @@
 #SBATCH --nodes=1
 #SBATCH --mem=480G
 #SBATCH --partition=dev-g
-#SBATCH --time=00:25:00
+#SBATCH --time=00:60:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
-#SBATCH --account=project_462000615
+#SBATCH --account=project_462000353
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
 
@@ -199,7 +199,6 @@ GPT_ARGS="$GPT_ARGS \
     --swiglu \
     --no-async-tensor-model-parallel-allreduce \
     --no-masked-softmax-fusion \
-    --no-gradient-accumulation-fusion \
     --no-bias-dropout-fusion \
     --no-rope-fusion \
     --no-load-optim \
@@ -207,6 +206,7 @@ GPT_ARGS="$GPT_ARGS \
     --distributed-timeout-minutes 30 \
     --overlap-grad-reduce \
     "
+    # --no-gradient-accumulation-fusion \
 
 OPTIMIZER_ARGS=" \
     --optimizer adam \
@@ -265,7 +265,7 @@ if [ "$SAVE_CKPT_PATH" != "None" ]; then
     "
 fi
 CMD=" \
-    Megatron-LM/pretrain_gpt.py \
+    Megatron-LM-IFU/pretrain_gpt.py \
     $GPT_ARGS \
     $OPTIMIZER_ARGS \
     $PARALLEL_ARGS \
@@ -288,7 +288,8 @@ echo "START $SLURM_JOBID: $(date)"
 echo "NNODES" $SLURM_NNODES
 echo "CPUS PER TASK" $SLURM_CPUS_PER_TASK
 
-CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+# CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
 
 export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
 export PWD=(`pwd -P`)
