@@ -3,7 +3,18 @@ import numpy as np
 from pathlib import Path
 import sys
 import matplotlib.pyplot as plt
-sys.path.append("/pfs/lustrep4/scratch/project_462000963/users/rluukkon/git/megatron-workdir-lumi")
+import os 
+
+PROJECT_ROOT_NAME = "megatron-workdir-lumi"
+current = Path(__file__).resolve()
+root = current
+
+while root.name != PROJECT_ROOT_NAME and root.parent != root:
+    root = root.parent
+if root.name != PROJECT_ROOT_NAME:
+    raise RuntimeError(f"Could not find project root '{PROJECT_ROOT_NAME}' starting from {current}")
+sys.path.insert(0, str(root))
+
 from tools.throughput import extract_values
 
 def plot_by_key(key, val_dict, out_dir: Path, plot_by, time_in_minutes):
