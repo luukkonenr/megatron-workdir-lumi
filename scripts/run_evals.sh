@@ -6,7 +6,7 @@
 #SBATCH --mem=400G
 #SBATCH --partition=dev-g
 #SBATCH --time=00:90:00
-#SBATCH --account=project_462000353
+#SBATCH --account=project_462000963
 #SBATCH --exclusive
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
@@ -27,24 +27,25 @@ export CXX=g++-12
 # SINGULARITY 
 CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
 export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
-CHECKPOINT_PATH=checkpoints/flame-moe-419m-12872205/
+# CHECKPOINT_PATH=checkpoints/flame-moe-419m-12872205/
 # CHECKPOINT_PATH=c"checkpoints/flame-moe-290m-12969781/"
         # --tokenizer-model $TOKENIZER_MODEL
 
 
+CHECKPOINT_PATH="/scratch/project_462000963/users/pyysalos/experiments/500m-config/output/checkpoints"
+TOKENIZER_MODEL="open-ai/gpt-oss"
 # RANDOM_DIR="/tmp/lm_eval_$(date +%s%N)"
-# timestamp=$(date +%s)
-# OUTPUT_FILE="${OUTPUT_DIR}/run_${timestamp}"
-# OUTPUT_DIR="eval_results_$SLURM_NTASKS_PER_NODE"
+timestamp=$(date +%s)
+OUTPUT_DIR="eval_results/"
+OUTPUT_FILE="${OUTPUT_DIR}/run_${timestamp}"
 # mkdir -p "$RANDOM_DIR"
 # echo Saving temporary results to $RANDOM_DIR
-# mkdir -p $OUTPUT_DIR
-# echo Final results will be saved to: $OUTPUT_FILE
+mkdir -p $OUTPUT_DIR
+echo Final results will be saved to: $OUTPUT_FILE
 
 # Adding lm-evaluation-harness to PYTHONPATH without installing it for dev purposes
 export PYTHONPATH=$PYTHONPATH:lm-evaluation-harness
 export PYTHONPATH=$PYTHONPATH:Megatron-LM
-NUM_FEWSHOT=0
 megatron_arguments=(--load $CHECKPOINT_PATH
         --no-load-optim 
         --no-load-rng 
@@ -54,17 +55,22 @@ megatron_arguments=(--load $CHECKPOINT_PATH
         --micro-batch-size 1
         --bf16
         --use-flash-attn
+        --qk-layernorm
         --tokenizer-type HuggingFaceTokenizer
         )
         # --rotary-base 500000
 
-# # install sqlitedict if not already installed
-# srun --label \
-#     singularity exec \
-#     -B ${PWD} \
-#     $CONTAINER \
-#     pip install --user sqlitedict more-itertools
+# install sqlitedict if not already installed
+srun --label \
+    singularity exec \
+    -B ${PWD} \
+    $CONTAINER \
+    pip install --user sqlitedict more-itertools
 
+
+# TASKS="arc_easy,arc_challenge,piqa,hellaswag,openbookqa,mmlu,lambada_openai,winogrande,boolq,commonsense_qa"
+TASKS="hellaswag"
+NUM_FEWSHOT=0
 srun --label \
     singularity exec \
     -B ${PWD} \
@@ -75,11 +81,13 @@ srun --label \
     "${megatron_arguments[@]}" \
     --num_fewshot $NUM_FEWSHOT \
     --verbosity DEBUG \
-    --tasks hellaswag \
-    --batch_size 16
+    --tasks "$TASKS" \
+    --batch_size 16 \
+    --output_path "${OUTPUT_FILE}"
+
     
 #     # --output_path $RANDOM_DIR \
-    
+# python lm_eval --model_args "pretrained=$MODEL,trust_remote_code=True" --device cuda:0 --batch_size 32 --tasks "$TASKS" --num_fewshot 0 --output_path results    
  
 # echo Moving temporary results from $RANDOM_DIR to $OUTPUT_FILE
 # find "$RANDOM_DIR" -name "results_*.json" -exec mv {} "$OUTPUT_FILE" \;

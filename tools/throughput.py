@@ -94,7 +94,6 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
     batch_size = args["global_batch_size"]
     tgs = [int(seq_len)*int(batch_size) / t[ELAPSED_TIME_LABEL]*1000 / WORLD_SIZE  for t in throughput]
     loss = get_key("lm loss", throughput)
-
     # make loss to be tuple of starting loss and ending loss, including nans
     loss = np.array(loss)
     loss_has_nan = (loss == -1).any()
@@ -131,7 +130,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "precision": args['params_dtype'],
         "fp8": args['fp8'],
         "rope_fusion": args['apply_rope_fusion'],
-        "loss": loss,
+        "lm loss": loss,
         "optimizer": args['optimizer'],
         "embedding_size": args['max_position_embeddings'],
         "transformer_impl": args['transformer_impl'],
@@ -144,8 +143,8 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "log_interval": args['log_interval'],
         "data_path": args['data_path'],
         "filename": filepath, }
-    
     # add optional args from args
+
     extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args }
     result.update(extra_args)
     

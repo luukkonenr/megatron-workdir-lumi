@@ -9,7 +9,7 @@ def main():
     filepath = sys.argv[1]
     vals, log_lines = extract_values(filepath, False)
 
-    y = vals['loss']
+    y = vals['lm loss']
     n = len(y)
     x = np.arange(0, n) * int(vals['log_interval'])
     x = x * int(vals['batch_size']) * int(vals['seq_len'])
