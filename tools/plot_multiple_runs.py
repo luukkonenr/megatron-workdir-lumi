@@ -17,7 +17,7 @@ sys.path.insert(0, str(root))
 
 from tools.throughput import extract_values
 
-def plot_by_key(key, val_dict, out_dir: Path, plot_by, time_in_minutes):
+def plot_by_key(key, val_dict, out_dir: Path, plot_by):
     plt.figure(figsize=(10, 6))
     annotation_positions = []  # track used y positions for annotations
     for k, vals in val_dict.items():
@@ -30,9 +30,9 @@ def plot_by_key(key, val_dict, out_dir: Path, plot_by, time_in_minutes):
         if plot_by == 'iters':
             x = np.arange(0, n) * int(vals['log_interval'])
         elif plot_by == 'time':
-            x = np.linspace(0, time_in_minutes, n)
-        else:
-            assert False, "Not a valid option"
+            x = np.linspace(0, vals.get('training_hours'), n)
+        elif plot_by == 'gpuh':
+            x = np.linspace(0, vals.get('training_hours')*vals.get('world_size'), n)
         plt.plot(x, y, label=f'{path}-{key}', linewidth=2)
         last_x = x[-1]; last_y = y[-1]
         plt.grid(True, linestyle='--', alpha=0.6)
@@ -75,8 +75,8 @@ def parse_args():
     p.add_argument("--out-dir", required=True, help="Directory to store generated plots.")
     p.add_argument("--keys", nargs="+", default=["lm loss"], help="Metric keys to plot.")
     p.add_argument("--extra-keys", nargs="*", default=["validation_loss"], help="Additional keys to extract (not necessarily plotted).")
-    p.add_argument("--plot-by", choices=["iters", "time"], help="Walltime")
-    p.add_argument("--time-in-minutes", type=int, default=3600)
+    p.add_argument("--plot-by", choices=["iters", "time", "gpuh"], help="Plot x-axis by training iters, walltime in hours or total spent gpuh (excluding initialization). ")
+    # p.add_argument("--time-in-minutes", type=int, default=3600)
     return p.parse_args()
 
 def main():
@@ -94,13 +94,14 @@ def main():
         extract_keys = list(set(args.keys + args.extra_keys))
         vals = extract_values(p, False, *extract_keys)[0]
         logs[path_obj] = vals
+
     
     if not logs:
         print("No valid logs to process.", file=sys.stderr)
         sys.exit(1)
 
     for key in args.keys:
-        plot_by_key(key, logs, out_dir, plot_by=args.plot_by, time_in_minutes=args.time_in_minutes)
+        plot_by_key(key, logs, out_dir, plot_by=args.plot_by)
 
 if __name__ == "__main__":
     main()

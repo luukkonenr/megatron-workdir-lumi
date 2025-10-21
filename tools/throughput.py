@@ -12,9 +12,15 @@ ITER_LINE_RE = re.compile(r".*iteration\s+(\d+)\/")
 ITER_SPLIT_RE = re.compile(r'\.\.\.+')
 ARG_START_RE = re.compile(r'---+ arguments ---+')
 ARG_END_RE = re.compile(r'---+ end of arguments ---+')
+# String that is displayed at the start of training:
+## 0: [before the start of training step] datetime: 2025-10-21 01:04:37 
 # reference for parameter parsing
 #  > number of parameters on (tensor, pipeline) model parallel rank (6, 0): 8624807936
 PARAM_PARSER = re.compile(r'.* parameters on \(tensor, pipeline\) model parallel rank \((\d+), (\d+)\): (\d+)')
+
+START_TIME_RE = re.compile(r'.*\[before the start of training step\] datetime:\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+END_TIME_RE = re.compile(r'.*\[after training is done\] datetime:\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+ITER_TS_RE = re.compile(r'^\s*\d+:\s+\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+iteration')
 
 def pprint(*args):
     print("  ", *args)
@@ -70,6 +76,32 @@ def extract_params(lines):
     params = sum(params.values())
     return params
 
+def extract_start_end_times(lines):
+    start_time = None
+    end_time = None
+    first_iter_ts = None
+    last_iter_ts = None
+    for line in lines:
+        if start_time is None:
+            m = START_TIME_RE.match(line)
+            if m:
+                start_time = m.group(1)
+        if end_time is None:
+            m2 = END_TIME_RE.match(line)
+            if m2:
+                end_time = m2.group(1)
+        m3 = ITER_TS_RE.match(line)
+        if m3:
+            ts = m3.group(1)
+            if first_iter_ts is None:
+                first_iter_ts = ts
+            last_iter_ts = ts
+    if start_time is None:
+        start_time = first_iter_ts
+    if end_time is None:
+        end_time = last_iter_ts
+    return start_time, end_time
+
 def extract_values(filepath, return_loss_min_max=True, *extra_args):
     lines = read_file(filepath)
     args = parse_args(lines)
@@ -86,6 +118,17 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
     num_model_params = extract_params(lines)
     time_created = os.path.getctime(filepath)
     time_created = datetime.datetime.fromtimestamp(time_created).strftime('%Y-%m-%d %H:%M:%S')
+    # Extract training start/end times
+    start_time_str, end_time_str = extract_start_end_times(lines)
+    elapsed_hours = None
+    if start_time_str and end_time_str:
+        try:
+            fmt = '%Y-%m-%d %H:%M:%S'
+            start_dt = datetime.datetime.strptime(start_time_str, fmt)
+            end_dt = datetime.datetime.strptime(end_time_str, fmt)
+            elapsed_hours = (end_dt - start_dt).total_seconds() / 3600.0
+        except Exception:
+            elapsed_hours = None
 
     if not args:
         return None
@@ -116,7 +159,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         loss = (loss_start, loss_end)
 
     
-
+    
     result = {
         "tgs": tgs,
         "tflops": tflops,
@@ -139,12 +182,16 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "recompute_granularity": args['recompute_granularity'],
         "num_model_params": num_model_params,
         "timestamp": time_created,
+        "start_time": start_time_str,
+        "end_time": end_time_str,
+        "training_hours": elapsed_hours,
         "log_lines": len(tgs),
         "log_interval": args['log_interval'],
         "data_path": args['data_path'],
-        "filename": filepath, }
+        "filename": filepath, 
+        }
+    
     # add optional args from args
-
     extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args }
     result.update(extra_args)
     
@@ -164,6 +211,8 @@ def main(argv):
             continue
         elif key == 'num_model_params':
             print(f"{key}: {value/1e9:.2f}B", end=", ")
+        elif key in ['elapsed_hours', 'training_hours'] and value is not None:
+            print(f"{key}: {value:.2f}h", end=", ")
         else:
             print(f"{key}: {value}", end=", ")
 
