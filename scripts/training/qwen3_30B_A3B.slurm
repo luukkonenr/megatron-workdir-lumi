@@ -180,22 +180,7 @@ DATA_PATH="1.0 ${DATA_ROOT}/merged"
 DATA_CACHE_PATH="$DATA_ROOT/cache"
 TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
 
-# MODEL
-#NUM_LAYERS=24
-#HIDDEN_SIZE=2048
-#FFN_HIDDEN_SIZE=$((4*HIDDEN_SIZE))
-NUM_ATTENTION_HEADS=32
-NUM_QUERY_GROUPS=4    # No GQA when NUM_QUERY_GROUPS=NUM_ATTENTION_HEADS
-#TIE_WORD_EMBEDDINGS=1
-#INIT_METHOD_STD=0.02
 SEQ_LENGTH=4096
-#ROTARY_BASE=10000    # Default, recommend larger for higher seq len
-
-# PARALLELISM
-PIPELINE_MODEL_PARALLEL_SIZE=1
-TENSOR_MODEL_PARALLEL_SIZE=1
-CONTEXT_PARALLEL_SIZE=1
-NUM_LAYERS_PER_VIRTUAL_PIPELINE_STAGE=1
 PROFILE=0
 
 # OPTIMIZER
@@ -209,7 +194,6 @@ CLIP_GRAD=1.0
 WEIGHT_DECAY=1e-1
 
 # TRAINING
-FSDP=0
 GLOBAL_BATCH_SIZE=512
 MICRO_BATCH_SIZE=1
 RECOMPUTATION=0
@@ -276,7 +260,6 @@ DATA_ARGS=(
 MODEL_ARGS=(
     --use-mcore-models
     --disable-bias-linear
-    --seq-length 4096
     --max-position-embeddings 32768
     --num-layers 48
     --hidden-size 2048
@@ -299,46 +282,29 @@ MODEL_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
     --bf16
+    --num-experts 128
+    --moe-router-topk 8
+    --moe-router-dtype fp64
     --kv-channels 128
 )
 
+MOE_ARGS=(
+    --moe-router-load-balancing-type aux_loss
+    --moe-aux-loss-coeff 0.001
+    --moe-grouped-gemm
+    # --moe-permute-fusion # TE version conflict
+    --moe-token-dispatcher-type alltoall
+    --overlap-param-gather
+    --overlap-grad-reduce
+    --moe-router-force-load-balancing
+)
 
-if [ "$NUM_QUERY_GROUPS" != "$NUM_ATTENTION_HEADS" ]; then
-    MODEL_ARGS+=(
-        --group-query-attention
-        --num-query-groups $NUM_QUERY_GROUPS
-    )
-fi
-
-if [ "$PROFILE" = "1" ]; then
-    PROFILE_ARGS=(
-        --profile
-	--use-pytorch-profiler
-	--profile-ranks 0
-	--profile-step-start 5
-	--profile-step-end 7
-    )
-else
-    PROFILE_ARGS=()
-fi
 
 MODEL_ARGS+=(
     --use-flash-attn
     --attention-softmax-in-fp32
-#     --max-position-embeddings $SEQ_LENGTH
-#     --seq-length $SEQ_LENGTH
-#     --position-embedding-type rope
-#     --rotary-base $ROTARY_BASE
-#     --disable-bias-linear
-#     --init-method-std $INIT_METHOD_STD
-#     --attention-dropout 0.0
-#     --hidden-dropout 0.0
-#     --normalization RMSNorm
-#     --micro-batch-size $MICRO_BATCH_SIZE
-#     --global-batch-size $GLOBAL_BATCH_SIZE
+    --seq-length $SEQ_LENGTH
     --train-samples $TRAIN_SAMPLES
-#     --no-async-tensor-model-parallel-allreduce
-    --no-masked-softmax-fusion
     --no-gradient-accumulation-fusion
     --no-bias-dropout-fusion
     --no-rope-fusion    # buggy on AMD, do not enable without validating
@@ -370,21 +336,10 @@ OUTPUT_ARGS=(
     --log-interval $LOG_INTERVAL
 )
 
-MOE_ARGS=(
-    --num-experts 128
-    --moe-router-topk 8
-    --moe-router-load-balancing-type aux_loss
-    --moe-aux-loss-coeff 0.001
-    --moe-grouped-gemm
-    --moe-token-dispatcher-type alltoall
-    --overlap-param-gather
-    --overlap-grad-reduce
-    --moe-router-force-load-balancing
-)
 
 PARALLEL_ARGS=(
     # --tensor-model-parallel-size 1
-    # --pipeline-model-parallel-size 1
+    --pipeline-model-parallel-size 2
     --expert-model-parallel-size 8
 #    --expert-tensor-parallel-size 1
 #    --use-torch-fsdp2
@@ -395,19 +350,24 @@ PARALLEL_ARGS=(
     --context-parallel-size 1
 )
 
-# Interleaved pipeline scheduling is only possible with pipeline
-# parallel degree > 1.
-if [ $PIPELINE_MODEL_PARALLEL_SIZE -gt 1 ] && [ $NUM_LAYERS_PER_VIRTUAL_PIPELINE_STAGE -gt 1 ]; then
-    PARALLEL_ARGS+=(
-	--num-layers-per-virtual-pipeline-stage $NUM_LAYERS_PER_VIRTUAL_PIPELINE_STAGE
-    )
-fi
 
 if [ "$RECOMPUTATION" = "1" ]; then
     MODEL_ARGS+=(
 	--recompute-activations
 	--recompute-granularity selective
     )
+fi
+
+if [ "$PROFILE" = "1" ]; then
+    PROFILE_ARGS=(
+        --profile
+	--use-pytorch-profiler
+	--profile-ranks 0
+	--profile-step-start 5
+	--profile-step-end 7
+    )
+else
+    PROFILE_ARGS=()
 fi
 
 CHECKPOINT_ARGS=(

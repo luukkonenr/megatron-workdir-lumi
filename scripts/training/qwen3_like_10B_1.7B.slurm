@@ -267,8 +267,8 @@ MODEL_ARGS=(
     # --ffn-hidden-size 6144
     --moe-ffn-hidden-size 1408
     --num-attention-heads 16
-    # --num-query-groups 4
-    --group-query-attention
+    # --num-query-groups 1
+    # --group-query-attention
     --init-method-std 0.01
     --attention-dropout 0.0
     --hidden-dropout 0.0
@@ -340,8 +340,8 @@ OUTPUT_ARGS=(
 
 PARALLEL_ARGS=(
     # --tensor-model-parallel-size 1
-    --pipeline-model-parallel-size 2
-    --expert-model-parallel-size 4
+    --pipeline-model-parallel-size 1
+    --expert-model-parallel-size 8
 #    --expert-tensor-parallel-size 1
 #    --use-torch-fsdp2
     --use-distributed-optimizer
@@ -378,7 +378,7 @@ CHECKPOINT_ARGS=(
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
 )
-MEGATRON_PATH="Megatron-LM-nvidia"
+MEGATRON_PATH="Megatron-LM-new"
 COMMAND=" \
     ${MEGATRON_PATH}/pretrain_gpt.py \
     "${MODEL_ARGS[@]}" \
