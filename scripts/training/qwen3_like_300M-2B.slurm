@@ -2,10 +2,10 @@
 #SBATCH --job-name=meglm-qwen3-dev
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=32
+#SBATCH --nodes=1
 #SBATCH --mem=480G
 #SBATCH --partition=dev-g
-#SBATCH --time=15:00
+#SBATCH --time=10:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
 #SBATCH --account=project_462000963
@@ -82,11 +82,11 @@ ln -sf "${logfile_basename}.err" "logs/latest.err"
 module purge
 
 # Dedicated LUMI container with most of what we need for LLM training
-# CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
 #CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.0.sif
 # CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
-CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
-# CONTAINER=/scratch/project_462000394/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+# CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+
 echo "Using container: $CONTAINER"
 
 # Directories to map into container
@@ -136,8 +136,7 @@ export HSA_ENABLE_IPC_MODE_LEGACY=0
 # (https://arxiv.org/pdf/2408.14090v1) but as of April 2025 is causing
 # training instability on LUMI with pipeline parallelism.
 # (see https://github.com/spyysalo/lumi-fineweb-replication/issues/1)
-export NCCL_NCHANNELS_PER_PEER=32 
-export NCCL_MIN_NCHANNELS=$NCCL_NCHANNELS_PER_PEER
+#export NCCL_NCHANNELS_PER_PEER=32
 
 # Set interfaces to be used by RCCL.
 # This is needed as otherwise RCCL tries to use a network interface it has
@@ -176,12 +175,15 @@ export NCCL_TUNER_PLUGIN=/tuner/librccl-tuner.so
 
 # DATA
 #DATA_ROOT="/scratch/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
-DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
-DATA_PATH="1.0 ${DATA_ROOT}/merged"
-DATA_CACHE_PATH="$DATA_ROOT/cache"
-TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
+# DATA_ROOT="/scratch/project_462000963/users/vitiugin/data_tok/hplt3_eng_cleaned_sample/hplt3c_eng_Latn_sample"
+# DATA_CACHE_PATH
+# DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
+# DATA_PATH="1.0 ${DATA_ROOT}/merged"
+# DATA_CACHE_PATH="$DATA_ROOT/cache"
+# TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
+TOKENIZER_MODEL="google/gemma-3-27b-pt"
 
-SEQ_LENGTH=2048
+SEQ_LENGTH=4096
 
 PROFILE=0
 
@@ -263,13 +265,13 @@ MODEL_ARGS=(
     --use-mcore-models
     --disable-bias-linear
     --max-position-embeddings 32768
-    --num-layers 94
-    --hidden-size 4096
+    --num-layers 14
+    --hidden-size 1024
     # --ffn-hidden-size 6144
-    --moe-ffn-hidden-size 1536
-    --num-attention-heads 64
-    --num-query-groups 4
-    --group-query-attention
+    --moe-ffn-hidden-size 672
+    --num-attention-heads 16
+    # --num-query-groups 1
+    # --group-query-attention
     --init-method-std 0.01
     --attention-dropout 0.0
     --hidden-dropout 0.0
@@ -284,9 +286,9 @@ MODEL_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
     --bf16
-    --num-experts 128
+    --num-experts 64
     --moe-router-topk 8
-    --moe-router-dtype fp32
+    --moe-router-dtype fp64
     --kv-channels 128
 )
 
@@ -294,7 +296,7 @@ MOE_ARGS=(
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 0.001
     --moe-grouped-gemm
-    # --moe-permute-fusion # TE version conflict 
+    # --moe-permute-fusion # TE version conflict
     --moe-token-dispatcher-type alltoall
     --overlap-param-gather
     --overlap-grad-reduce
@@ -309,7 +311,7 @@ MODEL_ARGS+=(
     --train-samples $TRAIN_SAMPLES
     --no-gradient-accumulation-fusion
     --no-bias-dropout-fusion
-    --no-rope-fusion    # was buggy on AMD, do not enable without validating
+    --no-rope-fusion    # buggy on AMD, do not enable without validating
     --distributed-timeout-minutes 30
     --overlap-grad-reduce
 )
@@ -341,14 +343,14 @@ OUTPUT_ARGS=(
 
 PARALLEL_ARGS=(
     # --tensor-model-parallel-size 1
-    --pipeline-model-parallel-size 32
-    --expert-model-parallel-size 8
-    --decoder-first-pipeline-num-layers 2
-    --decoder-last-pipeline-num-layers 2
-    # --expert-tensor-parallel-size 4
+    --expert-model-parallel-size 1
+#    --expert-tensor-parallel-size 1
 #    --use-torch-fsdp2
     --use-distributed-optimizer
     --sequence-parallel
+    --pipeline-model-parallel-size 4
+    --decoder-first-pipeline-num-layers 3
+    --decoder-last-pipeline-num-layers 3 
 #    --num-layers-per-virtual-pipeline-stage 2
 #    --tp-comm-overlap
     --context-parallel-size 1
@@ -365,10 +367,10 @@ fi
 if [ "$PROFILE" = "1" ]; then
     PROFILE_ARGS=(
         --profile
-        --use-pytorch-profiler
-        --profile-ranks 0
-        --profile-step-start 5
-        --profile-step-end 7
+	--use-pytorch-profiler
+	--profile-ranks 0
+	--profile-step-start 5
+	--profile-step-end 7
     )
 else
     PROFILE_ARGS=()
@@ -381,7 +383,7 @@ CHECKPOINT_ARGS=(
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
 )
-MEGATRON_PATH="Megatron-LM-new"
+MEGATRON_PATH="Megatron-LM-nvidia"
 COMMAND=" \
     ${MEGATRON_PATH}/pretrain_gpt.py \
     "${MODEL_ARGS[@]}" \

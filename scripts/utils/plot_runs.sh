@@ -5,5 +5,7 @@ singularity exec -B $SINGULARITY_BIND $CONTAINER \
     python3 tools/plot_multiple_runs.py \
         --logs \
             /scratch/project_462000353/avirtanen/Megatron-LM-rocm/logs/meglm-qwen3-train-13787989-2025-10-21_01-02-32.out \
+            /scratch/project_462000353/avirtanen/Megatron-LM-rocm/logs/meglm-dense-30B-train-13812501-2025-10-21_19-02-48.out \
             /scratch/project_462000353/avirtanen/Megatron-LM-rocm/logs/meglm-dense-8B-train-13791260-2025-10-21_03-48-50.out \
-        --out-dir plots --plot-by time --time-in-minutes 3600
+            /scratch/project_462000353/avirtanen/Megatron-LM-rocm/logs/meglm-dense-3B-train-13813144-2025-10-21_19-02-51.out \
+        --out-dir plots --plot-by iters --keys 'lm loss' 'learning_rate'
