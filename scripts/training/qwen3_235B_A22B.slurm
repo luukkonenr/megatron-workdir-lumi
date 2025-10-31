@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=meglm-qwen3-dev
+#SBATCH --job-name=meglm-qwen3-dev-235B
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=32
+#SBATCH --nodes=8
 #SBATCH --mem=480G
-#SBATCH --partition=dev-g
+#SBATCH --partition=standard-g
 #SBATCH --time=15:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
@@ -13,12 +13,8 @@
 #SBATCH --error logs/%j.err
 
 # This is a slurm script for training generative models on LUMI using
-# Megatron-LM pretrain_gpt.py. This script defines defaults for
-# training a FineWeb-like model (approx. 1.7B parameters) and is
-# intended to be reasonably easily modified for other model sizes
-# by editing the variables defined in the "MODEL AND PRETRAINING
-# CONFIGURATION" section below.
-#
+# Megatron-LM pretrain_gpt.py. 
+
 # Note that while the script defines default arguments for sbatch
 # in the #SBATCH comments above, you can override any of these on the
 # command line. For example, to run on 16 nodes:
@@ -82,11 +78,10 @@ ln -sf "${logfile_basename}.err" "logs/latest.err"
 module purge
 
 # Dedicated LUMI container with most of what we need for LLM training
-# CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
 #CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.0.sif
 # CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
-CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
-# CONTAINER=/scratch/project_462000394/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+# CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
 echo "Using container: $CONTAINER"
 
 # Directories to map into container
@@ -112,6 +107,10 @@ TENSORBOARD_DIR="$OUTPUT_DIR/tensorboard/$SLURM_JOB_NAME-$SLURM_JOBID"
 mkdir -p "$CHECKPOINT_PATH"    # This needs to exist
 
 # Script that is used to launch on GPU nodes
+# Sets rank-specific env variables, most importantly:
+#  export RANK=$SLURM_PROCID
+#  export LOCAL_RANK=$SLURM_LOCALID
+#  python3 -u "$@"
 LAUNCH_SCRIPT="$BASE_DIR/launcher.sh"
 
 # Needed for sequence paralellism
@@ -176,14 +175,14 @@ export NCCL_TUNER_PLUGIN=/tuner/librccl-tuner.so
 
 # DATA
 #DATA_ROOT="/scratch/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
-DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
-DATA_PATH="1.0 ${DATA_ROOT}/merged"
-DATA_CACHE_PATH="$DATA_ROOT/cache"
-TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
+# DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
+# DATA_PATH="1.0 ${DATA_ROOT}/merged"
+# DATA_CACHE_PATH="$DATA_ROOT/cache"
+TOKENIZER_MODEL="EleutherAI/gpt-neox-20b"
 
-SEQ_LENGTH=2048
+SEQ_LENGTH=4096
 
-PROFILE=0
+PROFILE=0 # Don't include in throughput tests
 
 # OPTIMIZER
 ADAM_BETA1=0.9
@@ -196,8 +195,8 @@ CLIP_GRAD=1.0
 WEIGHT_DECAY=1e-1
 
 # TRAINING
-GLOBAL_BATCH_SIZE=512
-MICRO_BATCH_SIZE=1
+GLOBAL_BATCH_SIZE=1024
+MICRO_BATCH_SIZE=1 # optimize this 
 RECOMPUTATION=0
 TRAIN_TOKENS=350_000_000_000    # TRAIN_SAMPLES computed from this
 
@@ -265,16 +264,16 @@ MODEL_ARGS=(
     --max-position-embeddings 32768
     --num-layers 94
     --hidden-size 4096
-    # --ffn-hidden-size 6144
     --moe-ffn-hidden-size 1536
     --num-attention-heads 64
     --num-query-groups 4
     --group-query-attention
-    --init-method-std 0.01
+    --init-method-std 0.02
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --qk-layernorm
     --normalization RMSNorm
+    --norm-epsilon 1e-6
     --position-embedding-type rope
     --swiglu
     --untie-embeddings-and-output-weights
@@ -286,7 +285,7 @@ MODEL_ARGS=(
     --bf16
     --num-experts 128
     --moe-router-topk 8
-    --moe-router-dtype fp32
+    --moe-router-dtype fp64 # fp64 uses native PyTorch implementation and thus avoid faulty TE-kernel on our LUMI environment. TODO: Investigate and fix the environment
     --kv-channels 128
 )
 
@@ -294,11 +293,13 @@ MOE_ARGS=(
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 0.001
     --moe-grouped-gemm
-    # --moe-permute-fusion # TE version conflict 
     --moe-token-dispatcher-type alltoall
-    --overlap-param-gather
-    --overlap-grad-reduce
-    --moe-router-force-load-balancing
+    --moe-router-force-load-balancing # This simulates a fully load-balanced routing scenario. DO NOT USE for real training runs!
+    --disable-gloo-process-groups # Not sure about the impact. Helps with communication errors on LUMI.
+    # --moe-enable-deepep
+    # --moe-permute-fusion # TE version conflict 
+    # --moe-router-fusion
+
 )
 
 
@@ -312,6 +313,7 @@ MODEL_ARGS+=(
     --no-rope-fusion    # was buggy on AMD, do not enable without validating
     --distributed-timeout-minutes 30
     --overlap-grad-reduce
+    --overlap-param-gather
 )
 
 OPTIMIZER_ARGS=(
@@ -340,18 +342,18 @@ OUTPUT_ARGS=(
 
 
 PARALLEL_ARGS=(
-    # --tensor-model-parallel-size 1
-    --pipeline-model-parallel-size 32
+    --pipeline-model-parallel-size 16
     --expert-model-parallel-size 8
-    --decoder-first-pipeline-num-layers 2
-    --decoder-last-pipeline-num-layers 2
-    # --expert-tensor-parallel-size 4
-#    --use-torch-fsdp2
+    --decoder-first-pipeline-num-layers 5
+    --decoder-last-pipeline-num-layers 5
     --use-distributed-optimizer
     --sequence-parallel
+    --context-parallel-size 2
+#    --use-torch-fsdp2
+#    --expert-tensor-parallel-size 1
+#    --tensor-model-parallel-size 1
 #    --num-layers-per-virtual-pipeline-stage 2
 #    --tp-comm-overlap
-    --context-parallel-size 1
 )
 
 
@@ -369,19 +371,21 @@ if [ "$PROFILE" = "1" ]; then
         --profile-ranks 0
         --profile-step-start 5
         --profile-step-end 7
+        --record-memory-history
+        --memory-snapshot-path "${TENSORBOARD_DIR}/memory_snapshot.pickle"
+ 
     )
 else
     PROFILE_ARGS=()
 fi
 
 CHECKPOINT_ARGS=(
-    --ckpt-format torch
-#     --async-save    # requires --ckpt-format torch_dist
+#    --async-save    # requires --ckpt-format torch_dist
 #    --load "$CHECKPOINT_PATH"
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
 )
-MEGATRON_PATH="Megatron-LM-new"
+MEGATRON_PATH="Megatron-LM"
 COMMAND=" \
     ${MEGATRON_PATH}/pretrain_gpt.py \
     "${MODEL_ARGS[@]}" \
