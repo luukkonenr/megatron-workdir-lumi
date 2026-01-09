@@ -3,15 +3,12 @@
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
 #SBATCH --nodes=4
-#SBATCH --mem=480G
-#SBATCH --partition=dev-g
 #SBATCH --time=10:00
-#SBATCH --exclusive
 #SBATCH --gpus-per-node=8
-#SBATCH --account=project_462000963
 #SBATCH --output logs/%j.out
 #SBATCH --error logs/%j.err
 
+#SBATCH --exclusive
 # This is a slurm script for training generative models on LUMI using
 # Megatron-LM pretrain_gpt.py. This script defines defaults for
 # training a FineWeb-like model (approx. 1.7B parameters) and is
@@ -50,6 +47,9 @@ fi
 # Bash "strict mode"
 # (see http://redsymbol.net/articles/unofficial-bash-strict-mode/)
 set -euo pipefail
+# source tensorwave_env.sh
+
+
 
 # When slurm reschedules a job that ended on node failure, it will run
 # with the same job ID, clobbering the original logs. Rename the logs
@@ -78,30 +78,15 @@ fi
 ln -sf "${logfile_basename}.out" "logs/latest.out"
 ln -sf "${logfile_basename}.err" "logs/latest.err"
 
-# No modules are needed with the container we are using.
-module purge
 
-# Dedicated LUMI container with most of what we need for LLM training
-CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
-#CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.0.sif
-# CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
-# CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+# # Avoid conflicts with $HOME/.local
+# export PYTHONUSERBASE=""
 
-echo "Using container: $CONTAINER"
-
-# Directories to map into container
-BIND_DIRS="/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd"
-
-# Avoid conflicts with $HOME/.local
-export PYTHONUSERBASE=""
-
-# Compilers in the container
-export CC=gcc-12
-export CXX=g++-12
+# # Compilers in the container
+# export CC=gcc-12
+# export CXX=g++-12
 
 # Mask to bind tasks to CPUs for one thread per core
-c="fe"
-BIND_MASK="0x${c}000000000000,0x${c}00000000000000,0x${c}0000,0x${c}000000,0x${c},0x${c}00,0x${c}00000000,0x${c}0000000000"
 
 # PATHS
 BASE_DIR="$SLURM_SUBMIT_DIR"
@@ -127,10 +112,7 @@ export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_PORT=9999    # TODO add in job ID
 export WORLD_SIZE=$SLURM_NTASKS    # Note: only valid if ntasks==ngpus
 
-# OMP THREADING
-export OMP_NUM_THREADS=1    # OMP_NUM_THREADS=1 is the safe option
-export HSA_ENABLE_SDMA=0
-export HSA_ENABLE_IPC_MODE_LEGACY=0
+
 
 # This setting is reported to provide a performance improvement
 # (https://arxiv.org/pdf/2408.14090v1) but as of April 2025 is causing
@@ -141,10 +123,7 @@ export HSA_ENABLE_IPC_MODE_LEGACY=0
 # Set interfaces to be used by RCCL.
 # This is needed as otherwise RCCL tries to use a network interface it has
 # no access to on LUMI.
-export NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3
-export NCCL_NET_GDR_LEVEL=PHB
-#export NCCL_DMABUF_ENABLE=1
-export HSA_FORCE_FINE_GRAIN_PCIE=1
+# export NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3
 
 # DEBUGGING, INCREASE VERBOSITY IN LOGS
 # export MIOPEN_ENABLE_LOGGING=1
@@ -154,11 +133,9 @@ export HSA_FORCE_FINE_GRAIN_PCIE=1
 # export RCCL_KERNEL_COLL_TRACE_ENABLE=1
 # export NCCL_DEBUG_SUBSYS=ALL
 # export NCCL_DEBUG_FILE=$OUTPUT_DIR/nccl-debug-${SLURM_JOB_NAME}-${SLURM_JOBID}.log #Move verbose nccl logging to its own file
-export NVTE_DEBUG=1
+export NVTE_DEBUG=0
 export NVTE_DEBUG_LEVEL=0
 
-# RCCL tuner plugin. Must mount /scratch/project_462000394/containers/for-turkunlp-team/tuner-2025-07-09/librccl-tuner.so:/tuner/librccl-tuner.so
-export NCCL_TUNER_PLUGIN=/tuner/librccl-tuner.so
 
 ######################################################################
 #
@@ -174,11 +151,9 @@ export NCCL_TUNER_PLUGIN=/tuner/librccl-tuner.so
 ######################################################################
 
 # DATA
-#DATA_ROOT="/scratch/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
-DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
-DATA_PATH="1.0 ${DATA_ROOT}/merged"
-DATA_CACHE_PATH="$DATA_ROOT/cache"
-TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
+# DATA_CACHE_PATH="$DATA_ROOT/cache"
+# TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
+TOKENIZER_MODEL="Qwen/Qwen3-30B-A3B"
 
 SEQ_LENGTH=4096
 PROFILE=0
@@ -310,6 +285,7 @@ MODEL_ARGS+=(
     --no-rope-fusion    # buggy on AMD, do not enable without validating
     --distributed-timeout-minutes 30
     --overlap-grad-reduce
+    --disable-gloo-process-groups
 )
 
 OPTIMIZER_ARGS=(
@@ -339,12 +315,12 @@ OUTPUT_ARGS=(
 
 PARALLEL_ARGS=(
     # --tensor-model-parallel-size 1
-    --pipeline-model-parallel-size 2
-    --expert-model-parallel-size 8
+    --pipeline-model-parallel-size 1
+    --expert-model-parallel-size 1
 #    --expert-tensor-parallel-size 1
 #    --use-torch-fsdp2
     --use-distributed-optimizer
-    --sequence-parallel
+    # --sequence-parallel
 #    --num-layers-per-virtual-pipeline-stage 2
 #    --tp-comm-overlap
     --context-parallel-size 1
@@ -371,13 +347,13 @@ else
 fi
 
 CHECKPOINT_ARGS=(
-    --ckpt-format torch
+    --ckpt-format torch_dist
 #     --async-save    # requires --ckpt-format torch_dist
 #    --load "$CHECKPOINT_PATH"
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
 )
-MEGATRON_PATH="Megatron-LM-new"
+MEGATRON_PATH="Megatron-LM"
 COMMAND=" \
     ${MEGATRON_PATH}/pretrain_gpt.py \
     "${MODEL_ARGS[@]}" \
@@ -407,11 +383,9 @@ echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
 
 srun \
     --label \
-    --cpu-bind=mask_cpu:$BIND_MASK \
     singularity exec \
     -B "$BASE_DIR" \
     -B "$BIND_DIRS" \
-    -B "/scratch/project_462000394/containers/for-turkunlp-team/tuner-2025-07-09/librccl-tuner.so:/tuner/librccl-tuner.so" \
     "$CONTAINER" \
     "$LAUNCH_SCRIPT" \
     $COMMAND

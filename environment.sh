@@ -1,0 +1,1 @@
+/home/risto.luukkonen@amd.com/environment.sh

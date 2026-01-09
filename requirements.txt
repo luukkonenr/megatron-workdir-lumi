@@ -1,0 +1,8 @@
+sqlitedict
+more-itertools
+sacrebleu
+evaluate
+pytablewriter
+transformers>=4.57.0
+datasets
+accelerate

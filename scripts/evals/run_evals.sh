@@ -1,39 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=eval-harness
-#SBATCH --gpus-per-node=8
-#SBATCH --ntasks-per-node=8
-#SBATCH --nodes=1
-#SBATCH --mem=400G
-#SBATCH --partition=dev-g
-#SBATCH --time=00:90:00
-#SBATCH --account=project_462000963
-#SBATCH --exclusive
-#SBATCH -o logs/%x-%j.out
-#SBATCH -e logs/%x-%j.err
 
-
-ln -sf ${SLURM_JOB_NAME}-${SLURM_JOBID}.out logs/latest.out
-ln -sf ${SLURM_JOB_NAME}-${SLURM_JOBID}.err logs/latest.err
-export PWD=(`pwd -P`)
-workdir=${PWD}
-export PYTHONUSERBASE=".local"
-
-export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
-export MASTER_PORT=9999
-export WORLD_SIZE=$SLURM_NTASKS #This is valid only if ntasks==ngpus
-export CUDA_DEVICE_MAX_CONNECTIONS=1 #This is needed for sequence paralellism
-export CC=gcc-12
-export CXX=g++-12
-# SINGULARITY 
-CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
-export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
-# CHECKPOINT_PATH=checkpoints/flame-moe-419m-12872205/
-# CHECKPOINT_PATH=c"checkpoints/flame-moe-290m-12969781/"
-        # --tokenizer-model $TOKENIZER_MODEL
-
-
-CHECKPOINT_PATH="/scratch/project_462000963/users/pyysalos/experiments/500m-config/output/checkpoints"
-TOKENIZER_MODEL="open-ai/gpt-oss"
+source configs/llama3.1-8B.sh
+MODEL_ARGS+=(
+    --load /shared_silo/scratch/rluukkon/Megatron-Bridge/checkpoints/llama31-8b-bridge-test
+)
 # RANDOM_DIR="/tmp/lm_eval_$(date +%s%N)"
 timestamp=$(date +%s)
 OUTPUT_DIR="eval_results/"
@@ -46,37 +16,26 @@ echo Final results will be saved to: $OUTPUT_FILE
 # Adding lm-evaluation-harness to PYTHONPATH without installing it for dev purposes
 export PYTHONPATH=$PYTHONPATH:lm-evaluation-harness
 export PYTHONPATH=$PYTHONPATH:Megatron-LM
-megatron_arguments=(--load $CHECKPOINT_PATH
+megatron_arguments=(
         --no-load-optim 
         --no-load-rng 
         --max-tokens-to-oom 40000
-        --use-checkpoint-args # use model args from checkpoint
-        --use-mp-args-from-checkpoint-args # use model parallel args from checkpoint
         --micro-batch-size 1
-        --bf16
-        --use-flash-attn
-        --qk-layernorm
-        --tokenizer-type HuggingFaceTokenizer
+        "${MODEL_ARGS[@]}"
         )
+        # --qk-layernorm
         # --rotary-base 500000
 
+echo "${megatron_arguments[@]}"
 # install sqlitedict if not already installed
-srun --label \
-    singularity exec \
-    -B ${PWD} \
-    $CONTAINER \
-    pip install --user sqlitedict more-itertools
-
+# pip install sqlitedict more-itertools sacrebleu evaluate pytablewriter
+pip list
+exit
 
 # TASKS="arc_easy,arc_challenge,piqa,hellaswag,openbookqa,mmlu,lambada_openai,winogrande,boolq,commonsense_qa"
 TASKS="hellaswag"
 NUM_FEWSHOT=0
-srun --label \
-    singularity exec \
-    -B ${PWD} \
-    $CONTAINER \
-    ./launcher.sh \
-    ${workdir}/lm-evaluation-harness/lm_eval/__main__.py \
+torchrun --nproc_per_node=8 lm-evaluation-harness/lm_eval/__main__.py \
     --model megatron_lm \
     "${megatron_arguments[@]}" \
     --num_fewshot $NUM_FEWSHOT \
@@ -84,11 +43,3 @@ srun --label \
     --tasks "$TASKS" \
     --batch_size 16 \
     --output_path "${OUTPUT_FILE}"
-
-    
-#     # --output_path $RANDOM_DIR \
-# python lm_eval --model_args "pretrained=$MODEL,trust_remote_code=True" --device cuda:0 --batch_size 32 --tasks "$TASKS" --num_fewshot 0 --output_path results    
- 
-# echo Moving temporary results from $RANDOM_DIR to $OUTPUT_FILE
-# find "$RANDOM_DIR" -name "results_*.json" -exec mv {} "$OUTPUT_FILE" \;
-# rm -rf "$RANDOM_DIR"
