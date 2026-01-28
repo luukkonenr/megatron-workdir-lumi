@@ -1,8 +1,9 @@
 #!/bin/bash
-
-source configs/llama3.1-8B.sh
+set -e
+source configs/qwen3-30b-a3b.sh
 MODEL_ARGS+=(
-    --load /shared_silo/scratch/rluukkon/Megatron-Bridge/checkpoints/llama31-8b-bridge-test
+    --load /shared_silo/scratch/rluukkon/Megatron-Bridge/checkpoints/qwen3-30b-a3b-bridge-test
+    # --load /shared_silo/scratch/rluukkon/Megatron-Bridge/checkpoints/llama31-8b-bridge-test
 )
 
 timestamp=$(date +%s)
@@ -39,7 +40,6 @@ echo "${megatron_arguments[@]}"
 # Need to isntall these if not already installed
 # pip install sqlitedict more-itertools sacrebleu evaluate pytablewriter
 
-# TASKS="arc_easy,arc_challenge,piqa,hellaswag,openbookqa,mmlu,lambada_openai,winogrande,boolq,commonsense_qa"
 TASKS="hellaswag"
 NUM_FEWSHOT=0
 echo "Launching evaluation with"
@@ -47,7 +47,7 @@ echo "${megatron_arguments[@]}"
 echo "Tasks: $TASKS"
 echo "Batch size: $BATCH_SIZE"
 echo "Output file: ${OUTPUT_FILE}"
-sbatch --nodes 4 launch_wrapper.sh \
+sbatch --nodes 2 scripts/evals/launch_wrapper.sh \
     lm-evaluation-harness/lm_eval/__main__.py \
     --model megatron_lm \
     "${megatron_arguments[@]}" \

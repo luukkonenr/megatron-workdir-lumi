@@ -1,20 +1,20 @@
 MODEL_ARGS=(
     --tokenizer-type HuggingFaceTokenizer
-    --tokenizer-model meta-llama/Llama-3.1-8B-Instruct
-    --num-layers 32 
-    --hidden-size 4096 
-    --ffn-hidden-size 14336 
+    --tokenizer-model Qwen/Qwen3-30B-A3B
+    --num-layers 48 
+    --hidden-size 2048 
+    --ffn-hidden-size 6144 
     --num-attention-heads 32 
-    --num-query-groups 8
+    --num-query-groups 4
     --group-query-attention 
+    --qk-layernorm
     --use-flash-attn 
     --attention-softmax-in-fp32 
-    --max-position-embeddings 8192
+    --max-position-embeddings 40960
     --seq-length 8192
     --position-embedding-type rope 
-    --rotary-base 500000
+    --rotary-base 1000000
     --rotary-percent 1.0
-    --rotary-scaling-factor 8.0
     --disable-bias-linear 
     --init-method-std 0.02 
     --attention-dropout 0.0 
@@ -22,22 +22,29 @@ MODEL_ARGS=(
     --normalization RMSNorm 
     --bf16 
     --swiglu 
+    --kv-channels 128
     --untie-embeddings-and-output-weights
+    --num-experts 128
+    --moe-router-topk 8
+    --moe-ffn-hidden-size 768
+    --moe-router-load-balancing-type aux_loss
+    --moe-aux-loss-coeff 0.001
+    --expert-model-parallel-size 8
 )
 # if train iterations is set, use it, otherwise use small number for testing
-if [ -z "$TRAIN_ITERS" ]; then
-    TRAIN_ITERS=20
+if [ -z "${TRAIN_ITERS:-}" ]; then
+    TRAIN_ITERS=500
 fi
-if [ -z "$LR_DECAY_ITERS" ]; then
-    LR_DECAY_ITERS=20
+if [ -z "${LR_DECAY_ITERS:-}" ]; then
+    LR_DECAY_ITERS=500
 fi
-if [ -z "$LR_WSD_DECAY_ITERS" ]; then
-    LR_WSD_DECAY_ITERS=10
+if [ -z "${LR_WSD_DECAY_ITERS:-}" ]; then
+    LR_WSD_DECAY_ITERS=$((LR_DECAY_ITERS / 2))
 fi
 
 TRAINING_ARGS=(
     --micro-batch-size 2 
-    --global-batch-size 2048 
+    --global-batch-size 128
     --no-async-tensor-model-parallel-allreduce 
     --no-masked-softmax-fusion 
     --no-gradient-accumulation-fusion 
@@ -48,8 +55,6 @@ TRAINING_ARGS=(
     --pipeline-model-parallel-size 1 
     --context-parallel-size 1 
     --use-distributed-optimizer 
-    # --data-path $DATA_PATH 
-    --mock-data
     --optimizer adam 
     --adam-beta1 0.9 
     --adam-beta2 0.95 
@@ -57,7 +62,7 @@ TRAINING_ARGS=(
     --lr 3e-4 
     --min-lr 0.0 
     --train-iters $TRAIN_ITERS 
-    --lr-warmup-iters 25000 
+    --lr-warmup-iters 100
     --lr-decay-style "WSD" 
     --lr-wsd-decay-style "linear" 
     --lr-decay-iters $LR_DECAY_ITERS 
@@ -75,7 +80,6 @@ TRAINING_ARGS=(
     --save-interval 1000 
     --ckpt-format torch 
     --auto-detect-ckpt-format 
-    --data-cache-path $DATA_CACHE_PATH 
     --make-vocab-size-divisible-by 256 
     --dataloader-type single 
     --num-workers 2 
