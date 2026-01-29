@@ -17,12 +17,18 @@ set -euo pipefail
 CHECKPOINT="/shared_silo/scratch/rluukkon/Megatron-Bridge/checkpoints/llama31-8b-bridge-test"
 # TASKS="arc_easy,arc_challenge"
 # TASKS="arc_easy,arc_challenge"
-TASKS="arc_easy"
+TASKS="hellaswag"
 BATCH_SIZE=8
 PORT=5000
 HF_MODEL_NAME="meta-llama/Llama-3.1-8B-Instruct"
 SEQ_LENGTH=8192
-source configs/llama3.1-8B.sh
+# loads $MODEL_ARGS
+source configs/llama3.1-8B.sh 
+MODEL_ARGS+=(
+    --load $CHECKPOINT
+)
+
+
 # ============================================
 # Setup
 # ============================================
@@ -37,9 +43,29 @@ overlay="/shared_silo/scratch/rluukkon/overlays/meg_eval.img:ro"
 # Cleanup on exit
 trap 'kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null' EXIT SIGINT SIGTERM
 
+        # --tokenizer-model meta-llama/Llama-3.1-8B-Instruct \
+        # --tokenizer-type HuggingFaceTokenizer \
+        # --load $CHECKPOINT \
+        # --use-checkpoint-args \
+        # --max-position-embeddings 131072 \
+        # --seq-length $SEQ_LENGTH \
 # ============================================
 # Launch Server
 # ============================================
+# 
+TEXT_GENERATION_SERVER_ARGS=(
+    --use-mcore-models
+    --micro-batch-size 8
+    --no-load-optim --no-load-rng
+    --inference-max-batch-size 32
+    --inference-max-requests 32
+    --inference-max-seq-length $SEQ_LENGTH
+    --inference-dynamic-batching-buffer-size-gb 150.0
+    --inference-dynamic-batching
+    --port $PORT
+    "${MODEL_ARGS[@]}"
+)
+echo "TEXT_GENERATION_SERVER_ARGS: ${TEXT_GENERATION_SERVER_ARGS[@]}"
 echo "Starting inference server..."
 srun --label apptainer exec --overlay $overlay $CONTAINER bash -c "
     export RANK=\$SLURM_PROCID; export LOCAL_RANK=\$SLURM_LOCALID;
@@ -47,22 +73,8 @@ srun --label apptainer exec --overlay $overlay $CONTAINER bash -c "
         --nnodes=\$SLURM_JOB_NUM_NODES --node_rank=\$SLURM_NODEID \
         --rdzv_id=\$SLURM_JOB_ID --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
         Megatron-LM/tools/run_text_generation_server.py \
-        --tokenizer-model meta-llama/Llama-3.1-8B-Instruct \
-        --tokenizer-type HuggingFaceTokenizer \
-        --load $CHECKPOINT \
-        --use-checkpoint-args \
-        --max-position-embeddings 131072 \
-        --seq-length $SEQ_LENGTH \
-        --use-mcore-models \
-        --micro-batch-size 8 \
-        --no-load-optim --no-load-rng \
-        --inference-max-batch-size 32 \
-        --inference-max-requests 32 \
-        --inference-max-seq-length $SEQ_LENGTH \
-        --inference-dynamic-batching-buffer-size-gb 150.0 \
-        --inference-dynamic-batching \
-        --port $PORT
-" &> logs/server-$SLURM_JOBID.log &
+        $(printf "%s " "${TEXT_GENERATION_SERVER_ARGS[@]}")
+        " &> logs/server-$SLURM_JOBID.log &
 SERVER_PID=$!
 
 # Wait for server ready
@@ -87,6 +99,7 @@ for task in "${TASK_ARRAY[@]}"; do
         --model local-completions \
         --tasks "$task" \
         --batch_size $BATCH_SIZE \
+        --limit 100 \
         --model_args "model=$HF_MODEL_NAME,base_url=http://localhost:${PORT}/completions,num_concurrent=1,max_retries=3,tokenized_requests=False" \
         --output_path "results/${task}_${SLURM_JOBID}.json"
     "
@@ -101,6 +114,7 @@ echo "Comparing with hf model..."
 apptainer exec --overlay $overlay $CONTAINER bash -c "
     python3 lm-evaluation-harness-main/lm_eval/__main__.py \
         --model hf \
+        --limit 100 \
         --tasks $TASKS \
         --batch_size $BATCH_SIZE \
         --model_args "pretrained=$HF_MODEL_NAME" \
