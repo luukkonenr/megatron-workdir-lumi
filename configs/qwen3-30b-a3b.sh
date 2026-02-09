@@ -20,6 +20,7 @@ MODEL_ARGS=(
     --attention-dropout 0.0 
     --hidden-dropout 0.0 
     --normalization RMSNorm 
+    --norm-epsilon 1e-6
     --bf16 
     --swiglu 
     --kv-channels 128
@@ -29,7 +30,11 @@ MODEL_ARGS=(
     --moe-ffn-hidden-size 768
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 0.001
+    --moe-router-dtype fp32
     --expert-model-parallel-size 8
+    --vocab-size 151936
+    --use-distributed-optimizer
+
 )
 # if train iterations is set, use it, otherwise use small number for testing
 if [ -z "${TRAIN_ITERS:-}" ]; then

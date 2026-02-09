@@ -7,6 +7,7 @@ import datetime
 SKIPPED_LINES = 2
 TFLOPS_LABEL = "throughput per GPU (TFLOP/s/GPU)"
 ELAPSED_TIME_LABEL="elapsed time per iteration (ms)"
+LEARNING_RATE_LABEL = "learning rate"
 
 ITER_LINE_RE = re.compile(r".*iteration\s+(\d+)\/")
 ITER_SPLIT_RE = re.compile(r'\.\.\.+')
@@ -64,6 +65,17 @@ def parse_iteration(line):
         result[key] = value
     return result
 
+def get_total_iterations(args):
+    if args['train_iters']:
+        return int(args['train_iters'])
+    elif args['train_samples']:
+        total_samples = int(args['train_samples'])
+        global_batch_size = int(args['global_batch_size'])
+        seq_len = int(args['seq_length'])
+        return total_samples // (global_batch_size * seq_len)
+    else:
+        return -1
+    
 def get_key(key, througput_dict):
     try:
         return [t[key] for t in througput_dict]
@@ -132,11 +144,13 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
 
     if not args:
         return None
+    
     WORLD_SIZE = int(args["world_size"])
     seq_len = args["seq_length"]
     batch_size = args["global_batch_size"]
     tgs = [int(seq_len)*int(batch_size) / t[ELAPSED_TIME_LABEL]*1000 / WORLD_SIZE  for t in throughput]
     loss = get_key("lm loss", throughput)
+
     # make loss to be tuple of starting loss and ending loss, including nans
     loss = np.array(loss)
     loss_has_nan = (loss == -1).any()
@@ -148,6 +162,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         loss_end = loss[-1]
     tflops = get_key(TFLOPS_LABEL, throughput)
     mem_usages = get_key("mem usages", throughput)
+    learning_rate = get_key(LEARNING_RATE_LABEL, throughput)
     # check if fsdp-key exists
     fsdp_key = 'use_torch_fsdp2'
 
@@ -157,6 +172,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         args['fsdp'] = args[fsdp_key]
     if return_loss_min_max:
         loss = (loss_start, loss_end)
+        learning_rate = (max(learning_rate), min(learning_rate))
 
     
     
@@ -164,6 +180,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "tgs": tgs,
         "tflops": tflops,
         "mem_usages": mem_usages,
+        "learning_rate": learning_rate,
         "seq_len": seq_len,
         "micro_batch_size": args['micro_batch_size'],
         "batch_size": batch_size,
@@ -189,10 +206,13 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "log_interval": args['log_interval'],
         "data_path": args['data_path'],
         "filename": filepath, 
+        "time_per_iter": get_key(ELAPSED_TIME_LABEL, throughput),
+        "total_iters": get_total_iterations(args),
+
         }
     
     # add optional args from args
-    extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args }
+    extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args if arg_name not in result.keys()}
     result.update(extra_args)
     
     return result, len(tgs)
@@ -214,12 +234,26 @@ def main(argv):
         elif key in ['elapsed_hours', 'training_hours'] and value is not None:
             print(f"{key}: {value:.2f}h", end=", ")
         else:
-            print(f"{key}: {value}", end=", ")
-
-    ### print throughput numbers
-    row_format = "{:<10} | {:<10.2f} | {:<10.2f} | {:<10.2f}"
-    header_format = "{:<10} | {:<10} | {:<10} | {:<10}"
-    header = header_format.format(" ", "TGS", "TFLOPs", "mem usages")
+            if isinstance(value, list):
+                continue
+            else:
+                print(f"{key}: {value}", end=", ")
+    
+    # Compute total GPU hours required to train the model to completion based on current elapsed time per iteration and total number of training iterations
+    # We use divider of 2 as one MI250x GPU has 2 compute dies
+    
+    # gpuh_to_complete = throughput * np.mean([t[ELAPSED_TIME_LABEL] for t in throughput]) / 1000 / 3600 * get_total_iterations(args) / 2
+    mean_gpuh_to_complete = np.mean(values['time_per_iter']) / 1000 / 3600 * values['total_iters'] * (values['world_size'] / 2)
+    min_gpuh_to_complete = np.min(values['time_per_iter']) / 1000 / 3600 * values['total_iters'] * (values['world_size'] / 2)
+    print(f"\nEstimated GPU hours to complete training based on mean time per iteration: {mean_gpuh_to_complete:.2f}h"
+          f"\nEstimated GPU hours to complete training based on best time per iteration: {min_gpuh_to_complete:.2f}h")
+    # estimated wall-clock time to complete training
+    mean_wall_clock_to_complete = np.mean(values['time_per_iter']) / 1000 / 3600 * values['total_iters']
+    print(f"Estimated wall-clock time to complete training based on mean time per iteration: {mean_wall_clock_to_complete:.2f}h")
+    # ### print throughput numbers
+    row_format = "{:<10} | {:<10.2f} | {:<10.2f} | {:<10.2f} | {:<10.6e}"
+    header_format = "{:<10} | {:<10} | {:<10} | {:<10} | {:<10}"
+    header = header_format.format(" ", "TGS", "TFLOPs", "time_per_iter", "lr")
     separator = "-" * len(header)
     if log_lines > 1:
         print("")
@@ -227,10 +261,10 @@ def main(argv):
         print(separator)
         print(header)
         print(separator)
-        print(row_format.format("mean", np.mean(values['tgs']), np.mean(values['tflops']), np.mean(values['mem_usages'])))
-        print(row_format.format("std", np.std(values['tgs']), np.std(values['tflops']), np.std(values['mem_usages'])))
-        print(row_format.format("max", np.max(values['tgs']), np.max(values['tflops']), np.max(values['mem_usages'])))
-        print(row_format.format("min", np.min(values['tgs']), np.min(values['tflops']), np.min(values['mem_usages'])))
+        print(row_format.format("mean", np.mean(values['tgs']), np.mean(values['tflops']), np.mean(values['time_per_iter']), np.mean(values['learning_rate'])))
+        print(row_format.format("std", np.std(values['tgs']), np.std(values['tflops']), np.std(values['time_per_iter']), np.std(values['learning_rate'])))
+        print(row_format.format("max", np.max(values['tgs']), np.max(values['tflops']), np.max(values['time_per_iter']), np.max(values['learning_rate'])))
+        print(row_format.format("min", np.min(values['tgs']), np.min(values['tflops']), np.min(values['time_per_iter']), np.min(values['learning_rate'])))
     else:
         print(f"Found {log_lines} logs lines, not enough")
     

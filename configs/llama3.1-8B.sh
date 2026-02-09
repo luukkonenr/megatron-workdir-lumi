@@ -24,16 +24,13 @@ MODEL_ARGS=(
     --swiglu 
     --untie-embeddings-and-output-weights
 )
-# if train iterations is set, use it, otherwise use small number for testing
-if [ -z "$TRAIN_ITERS" ]; then
-    TRAIN_ITERS=20
-fi
-if [ -z "$LR_DECAY_ITERS" ]; then
-    LR_DECAY_ITERS=20
-fi
-if [ -z "$LR_WSD_DECAY_ITERS" ]; then
-    LR_WSD_DECAY_ITERS=10
-fi
+
+# Set small defaults to avoid errors when not using them
+: "${TRAIN_ITERS:=20}"
+: "${LR_DECAY_ITERS:=20}"
+: "${LR_WSD_DECAY_ITERS:=10}"
+: "${CHECKPOINT_PATH:=checkpoints/test}"
+: "${DATA_CACHE_PATH:=./data_cache}"
 
 TRAINING_ARGS=(
     --micro-batch-size 2 

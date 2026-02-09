@@ -1,0 +1,33 @@
+MODEL_ARGS=(
+    --num-layers 14
+    --hidden-size 1024
+    --ffn-hidden-size 3072
+    --num-attention-heads 16
+    --num-query-groups 16
+    --group-query-attention
+    --qk-layernorm
+    --use-flash-attn
+    --attention-softmax-in-fp32
+    --max-position-embeddings 40960
+    --seq-length 8192
+    --position-embedding-type rope
+    --rotary-base 1000000
+    --rotary-percent 1.0
+    --init-method-std 0.02
+    --attention-dropout 0.0
+    --hidden-dropout 0.0
+    --normalization RMSNorm
+    --norm-epsilon 1e-6
+    --bf16
+    --swiglu
+    --kv-channels 96
+    --num-experts 64
+    --moe-router-topk 8
+    --moe-ffn-hidden-size 672
+    --moe-router-load-balancing-type aux_loss
+    --moe-aux-loss-coeff 0.001
+    --moe-router-dtype fp32
+    --expert-model-parallel-size 8
+    --vocab-size 50000
+    --use-distributed-optimizer
+)
