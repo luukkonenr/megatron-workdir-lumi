@@ -32,7 +32,6 @@ MODEL_ARGS=(
     --moe-token-dispatcher-type alltoall
     --moe-aux-loss-coeff $MOE_AUX_LOSS_COEFF
     --moe-router-dtype fp32
-    --use-distributed-optimizer
     --expert-model-parallel-size 1
     --micro-batch-size 32
 )

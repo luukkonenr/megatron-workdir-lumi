@@ -42,10 +42,21 @@ TRAINING_ARGS=(
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
     --context-parallel-size 1
-    --use-distributed-optimizer
-    --optimizer adam
+    # Muon optimizer does not support distributed optimizer
+    # --use-distributed-optimizer
+    # Muon optimizer does not support overlap grad reduce/param gather
+    # --overlap-grad-reduce
+    # --overlap-param-gather
+    --optimizer muon
+    --muon-momentum 0.9
+    --muon-scale-mode spectral
+    --muon-extra-scale-factor 0.2
+    --muon-num-ns-steps 5
+    --muon-tp-mode blockwise
+    --muon-fp32-matmul-prec medium
+    # Adam config for non-linear parameters (Muon handles linear params)
     --adam-beta1 0.9
-    --adam-beta2 0.95
+    --adam-beta2 0.999
     --adam-eps 1e-8
     --lr $LR
     --min-lr $MIN_LR
@@ -59,16 +70,15 @@ TRAINING_ARGS=(
     --weight-decay 0.05
     --eval-interval 10000
     --eval-iters 100
-    --auto-detect-ckpt-format
     --make-vocab-size-divisible-by 256
     --dataloader-type single
     --num-workers 7
-    --use-distributed-optimizer
 )
 
 OUTPUT_ARGS=(
     --save $CHECKPOINT_PATH
     --save-interval 10000
+    # Muon optimizer supports torch and torch_dist checkpoint formats
     --ckpt-format torch_dist
     --log-throughput
     --log-timers-to-tensorboard
