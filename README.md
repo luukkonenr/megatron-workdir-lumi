@@ -2,6 +2,10 @@
 
 Workdir mainly for internal usage. Requires internal project credentials for direct usage. With project *353-access you can get a succesfull training started in seconds. 
 
+# TODOS:
+  - Migrate conversions to Megatron-Bridge
+  - Migrate evaluations to latest eval-harness ([patched version](https://github.com/luukkonenr/lm-evaluation-harness/tree/upstream)) that has native support for Megatron-LM checkpoints
+
 ## Training
 
 This example has `--exit-interval 20` so it will terminate after 20 iterations. It can be adapted to your needs. 
