@@ -6,3 +6,5 @@ pytablewriter
 transformers>=4.57.0
 datasets
 accelerate
+tenacity
+sacrebleu
