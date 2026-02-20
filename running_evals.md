@@ -52,6 +52,9 @@ export PYTHONPATH=$PYTHONPATH:$MEGATRON_PATH:$LM_EVAL_PATH
 
 CHECKPOINT=<>
 TOKENIZER=<>
+For example:
+# CHECKPOINT="/shared_silo/scratch/rluukkon/megatron-workdir-lumi/checkpoints/qwen3-30b-a3b-bridge-test"
+# TOKENIZER="Qwen/Qwen3-30B-A3B"
 
 result_dir="results"
 # Megatron
