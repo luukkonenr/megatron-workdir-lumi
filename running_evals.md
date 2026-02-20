@@ -1,11 +1,22 @@
 # Running evals with Megatron-LM checkpoints and eval harness:
-Use the following forks and branches:
+Clone the following forks and branches:
 
 Megatron: https://github.com/OpenEuroLLM/NVIDIA-Megatron-LM/tree/dev
   - Contains a fix for reading --qk-layernorm and --norm-epsilon from the checkpoint args. If running a model with qk-layernorm without this patch, lm_eval requires extra_args="--qk-layernorm" or it ends up building a broken model.
 
 eval-harness: https://github.com/luukkonenr/lm-evaluation-harness/tree/upstream
   - Contains a patch to do gather-calls from lm-object directly, as the old API used `lm.accelerator.gather_object`
+
+
+For example:
+```
+mkdir evaluations
+cd evaluations
+git clone -b dev https://github.com/OpenEuroLLM/NVIDIA-Megatron-LM/
+git clone -b upstream https://github.com/luukkonenr/lm-evaluation-harness
+cd lm-evaluation-harness
+
+```
 
 ## Example running with both Megatron-LM and HF checkpoint formats
 
