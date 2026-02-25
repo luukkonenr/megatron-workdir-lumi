@@ -72,7 +72,7 @@ LR_DECAY_ITERS=$TRAIN_ITERS
 
 megatron_path=Megatron-LM
 source environment.sh
-source configs/qwenNB-a3b.sh
+source configs/qwen3-30b-a3b.sh
 
 DATA_ARGS=(
     # --data-path wikipedia_20220301.en.valid.jsonl.preprocessed_text_document
