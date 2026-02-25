@@ -38,7 +38,7 @@ LAUNCH_SCRIPT="/shared_silo/scratch/rluukkon/oellm/oellm_fsdp/launch.sh"
 # WANDB_EXP_NAME="OELLM-9B-8020"
 # WANDB_DIR="$OUTPUT_DIR/wandb"
 # export WANDB_API_KEY=e180e74ecbd5eb200b9a130666e5cb8e89b15327
-TRAIN_TOKENS=30_000_000_000   # TRAIN_ITERS computed from this
+TRAIN_TOKENS=10_000_000_000   # TRAIN_ITERS computed from this
 
 divide_rounding_up() {
     echo $((($1+$2-1)/$2))
@@ -72,7 +72,7 @@ LR_DECAY_ITERS=$TRAIN_ITERS
 
 megatron_path=Megatron-LM
 source environment.sh
-source configs/qwenNB-a3b.sh
+source configs/qwen3-like-A1B.sh
 
 DATA_ARGS=(
     # --data-path wikipedia_20220301.en.valid.jsonl.preprocessed_text_document

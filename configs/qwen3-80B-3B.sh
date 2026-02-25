@@ -11,7 +11,7 @@ MODEL_ARGS=(
     --use-flash-attn 
     --attention-softmax-in-fp32 
     --max-position-embeddings 40960
-    --seq-length 8192
+    --seq-length 4096
     --position-embedding-type rope 
     --rotary-base 1000000
     --rotary-percent 1.0
@@ -25,13 +25,17 @@ MODEL_ARGS=(
     --swiglu 
     --kv-channels 128
     --untie-embeddings-and-output-weights
-    --num-experts 128
+    --num-experts 384
     --moe-router-topk 8
+    --moe-router-num-groups 8
+    # --moe-router-group-topk 4
     --moe-ffn-hidden-size 768
-    --moe-router-load-balancing-type aux_loss
+    --moe-router-load-balancing-type global_aux_loss
     --moe-aux-loss-coeff 0.001
     --moe-router-dtype fp32
     --expert-model-parallel-size 8
+    --moe-token-dispatcher-type alltoall
+    --moe-grouped-gemm
     --vocab-size 151936
     --use-distributed-optimizer
 
@@ -48,13 +52,15 @@ if [ -z "${LR_WSD_DECAY_ITERS:-}" ]; then
 fi
 
 TRAINING_ARGS=(
-    --micro-batch-size 2 
-    --global-batch-size 128
-    --no-async-tensor-model-parallel-allreduce 
+    --micro-batch-size 4
+    --global-batch-size 512
+    # --no-async-tensor-model-parallel-allreduce 
     --no-masked-softmax-fusion 
+    --overlap-grad-reduce
+    --overlap-param-gather
     --no-gradient-accumulation-fusion 
     --no-bias-dropout-fusion 
-    --no-rope-fusion 
+    # --no-rope-fusion 
     --distributed-timeout-minutes 60 
     --tensor-model-parallel-size 1 
     --pipeline-model-parallel-size 1 
@@ -72,7 +78,7 @@ TRAINING_ARGS=(
     --lr-wsd-decay-style "linear" 
     --lr-decay-iters $LR_DECAY_ITERS 
     --lr-wsd-decay-iters $LR_WSD_DECAY_ITERS 
-    --clip-grad 1.0 
+    --clip-grad 1.0
     --weight-decay 0.05 
     # --tensorboard-dir $TENSORBOARD_DIR 
     --log-throughput 
