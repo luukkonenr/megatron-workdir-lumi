@@ -1,5 +1,5 @@
-Process to use modular transformers for custom models:
-
+Process to use modular transformers to create custom models:
+# Generating modeling_<xxx>.py
 
 ```
 git clone https://github.com/huggingface/transformers.git
@@ -174,6 +174,7 @@ __all__ = [
 ]
 
 ```
+# Using the new model with the opensci conversion pipeline
 
 After the modeling file is created, you can just use it with OpenSci-converter. Here's an example of how I use it. I have changed `q_layernorm` and `k_layernorm` from the [converter](github.com/LAION-AI/Megatron-LM-Open-Sci/blob/converter/scripts/ckpt/mcore_to_hf_opensci.py) to `q_norm` and `k_norm`
 And one more thing: created modeling and configuration files are created to be part of the transformers model library, so to detach them and load with trust_remote_code=True, you need to replace relative imports with sed to use root "transformers." instead of "...<path>.<to>.<module>"
