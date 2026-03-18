@@ -1,6 +1,4 @@
 [submodule "Megatron-LM"]
 	path = Megatron-LM
-	url = https://github.com/luukkonenr/Megatron-LM-rocm
-[submodule "lm-evaluation-harness"]
-        path = lm-evaluation-harness
-        url = git@github.com:luukkonenr/lm-evaluation-harness.git
+	url = https://github.com/OpenEuroLLM/NVIDIA-Megatron-LM
+	branch = v0.16.0-openeurollm
