@@ -1,5 +1,6 @@
 # megatron-workdir-lumi
 
+
 Workdir mainly for internal usage. Requires internal project credentials for direct usage. With project *353-access you can get a succesfull training started in seconds. 
 
 # TODOS:
@@ -7,6 +8,11 @@ Workdir mainly for internal usage. Requires internal project credentials for dir
   - Migrate evaluations to latest eval-harness ([patched version](https://github.com/luukkonenr/lm-evaluation-harness/tree/upstream)) that has native support for Megatron-LM checkpoints
 
 ## Training
+
+### Running on JUPITER with qwen3-325B-A22B
+ - clone the repo with recursive submodule
+ - run `GLOBAL_BATCH_SIZE=2048 sbatch --job-name qwen3-235B-a22B --nodes=512 scripts/training/train_model.sh configs/qwen3_235B_a3b.sh`
+
 
 This example has `--exit-interval 20` so it will terminate after 20 iterations. It can be adapted to your needs. 
 Example uses Llama3.1-tokenizer, which has a vocab size of approximately 128k tokens.
