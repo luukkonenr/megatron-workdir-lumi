@@ -7,8 +7,8 @@
 MIN_LR=${MIN_LR:-0}
 LR=${LR:-3e-4}
 TP_SIZE=${TP_SIZE:-2}
-PP_SIZE=${PP_SIZE:-4}
-VPP_SIZE=${VPP_SIZE:-8}
+PP_SIZE=${PP_SIZE:-8}
+VPP_SIZE=${VPP_SIZE:-4}
 HYBRIDEP_SMS=${HYBRIDEP_SMS:-16}
 USE_DELAY_WGRAD=${USE_DELAY_WGRAD:-0}
 
@@ -23,6 +23,7 @@ export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-32}
 # export NVTE_FWD_LAYERNORM_SM_MARGIN=24
 # export NVTE_BWD_LAYERNORM_SM_MARGIN=24
 # Recommended by reference YAML
+export PYTORCH_ALLOC_CONF=expandable_segments:True
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NCCL_NVLS_ENABLE=1
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
@@ -116,6 +117,7 @@ TRAINING_ARGS=(
     --cross-entropy-loss-fusion
     --manual-gc
     --manual-gc-interval 5
+    # --empty-unused-memory-level 1
 )
 
 if [ "${USE_DELAY_WGRAD}" = "1" ]; then

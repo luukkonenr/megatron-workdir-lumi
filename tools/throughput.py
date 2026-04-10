@@ -9,7 +9,8 @@ TFLOPS_LABEL = "throughput per GPU (TFLOP/s/GPU)"
 ELAPSED_TIME_LABEL="elapsed time per iteration (ms)"
 
 ITER_LINE_RE = re.compile(r".*iteration\s+(\d+)\/")
-ITER_SPLIT_RE = re.compile(r'\.\.\.+')
+
+ITER_SPLIT_RE = re.compile(r'(?<=\S)\s*\.+\s+|(?<=\S)\s{2,}')
 ARG_START_RE = re.compile(r'---+ arguments ---+')
 ARG_END_RE = re.compile(r'---+ end of arguments ---+')
 # String that is displayed at the start of training:
@@ -48,10 +49,12 @@ def parse_args(lines):
                 try:
                     parts = ITER_SPLIT_RE.split(line.split(":")[-1])
                     key = parts[0].strip()
-                    value = parts[1].strip()
+                    value = parts[1].strip() if len(parts) > 1 else None
                     arguments[key] = value
                 except:
                     print(f"Failed to grep arguments from line: \"{line}\"")
+
+
         return arguments
 
 def parse_iteration(line):

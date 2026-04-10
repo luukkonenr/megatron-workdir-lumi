@@ -5,7 +5,7 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --nodes=8
 #SBATCH --mem=0G
-#SBATCH --time=0-00:10:00
+#SBATCH --time=0-00:15:00
 #SBATCH --exclusive
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
@@ -15,7 +15,7 @@ set -x
 
 # add emerging-optimizers to python path
 # export PYTHONPATH=$PYTHONPATH:Emerging-Optimizers
-
+module purge
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_PORT=9999
 export WORLD_SIZE=$SLURM_NTASKS
@@ -33,7 +33,7 @@ LAUNCH_SCRIPT="./launcher.sh"
 TENSORBOARD_DIR=$OUTPUT_DIR/tensorboard/$SLURM_JOB_NAME-$SLURM_JOBID
 
 # These need to be before the source commands
-GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-128}
+GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-1024}
 SEQ_LENGTH=${SEQ_LENGTH:-8192}
 LR=${LR:-3e-4}
 MIN_LR=${MIN_LR:-0}
@@ -48,7 +48,7 @@ WANDB_PROJECT="moe_sweep_init_grid"
 WANDB_EXP_NAME="350M-GBS${GLOBAL_BATCH_SIZE}-MRT${MOE_ROUTER_TOPK}-LR${LR}-NE${NUM_EXPERTS}-${SLURM_JOB_NAME}-${SLURM_JOBID}"
 
 
-megatron_path=$PWD
+megatron_path=Megatron-LM
 
 # CONFIG_FILE can be passed as the first positional argument, via the CONFIG_FILE
 # environment variable, or falls back to the default llama3.1-8B config.
