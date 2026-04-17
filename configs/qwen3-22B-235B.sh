@@ -16,7 +16,7 @@ MODEL_ARGS=(
     --rotary-base 1000000
     --rotary-percent 1.0
     --disable-bias-linear
-    --init-method-std 0.02
+    --init-method-std 0.006
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --normalization RMSNorm
@@ -30,6 +30,7 @@ MODEL_ARGS=(
     --moe-ffn-hidden-size 1536
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 0.001
+    --moe-z-loss-coeff 1e-4
     --moe-router-dtype fp32
     --expert-model-parallel-size 8
     --vocab-size 50000

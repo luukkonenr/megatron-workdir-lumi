@@ -1,6 +1,6 @@
 MODEL_ARGS=(
     --tokenizer-type HuggingFaceTokenizer
-    --tokenizer-model Qwen/Qwen3-30B-A3B
+    --tokenizer-model Qwen/Qwen3-Next-80B-A3B-Instruct
     --num-layers 48 
     --hidden-size 2048 
     --ffn-hidden-size 6144 
@@ -28,7 +28,7 @@ MODEL_ARGS=(
     --num-experts 384
     --moe-router-topk 8
     --moe-router-num-groups 8
-    # --moe-router-group-topk 4
+    --moe-router-group-topk 2
     --moe-ffn-hidden-size 768
     --moe-router-load-balancing-type global_aux_loss
     --moe-aux-loss-coeff 0.001

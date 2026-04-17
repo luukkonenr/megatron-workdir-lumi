@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=350M
+#SBATCH --job-name=llama-seqlen-test
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
 #SBATCH --gpus-per-node=8
 #SBATCH --nodes=1
 #SBATCH --mem=480G
 #SBATCH --partition=amd-tw-verification
-#SBATCH --time=0-04:00:00
+#SBATCH --time=0-00:05:00
 #SBATCH --exclusive
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
@@ -14,6 +14,10 @@
 set -euo pipefail
 
 export WANDB_API_KEY=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 
+
+# symlink logfile to latest.out and latest.err
+ln -sf ${SLURM_JOB_NAME}-${SLURM_JOBID}.out logs/latest.out
+ln -sf ${SLURM_JOB_NAME}-${SLURM_JOBID}.err logs/latest.err
 
 # add emerging-optimizers to python path
 export PYTHONPATH=$PYTHONPATH:Emerging-Optimizers
@@ -36,10 +40,13 @@ TENSORBOARD_DIR=$OUTPUT_DIR/tensorboard/$SLURM_JOB_NAME-$SLURM_JOBID
 # export WANDB_API_KEY=e180e74ecbd5eb200b9a130666e5cb8e89b15327
 
 # These need to be before the source commands
-GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-1024}
-SEQ_LENGTH=${SEQ_LENGTH:-4096}
+GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-64}
+MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1}
+SEQ_LENGTH=${SEQ_LENGTH:-8192} # 16384 # 32768 # 65536
 LR=${LR:-3e-4}
 MIN_LR=${MIN_LR:-0}
+
+# With MOE, we need to set the number of experts
 NUM_EXPERTS=${NUM_EXPERTS:-64}
 MOE_ROUTER_TOPK=${MOE_ROUTER_TOPK:-8}
 MOE_AUX_LOSS_COEFF=${MOE_AUX_LOSS_COEFF:-0.001}
@@ -48,44 +55,36 @@ OPTIMIZER=${OPTIMIZER:-adam}
 WANDB_ENTITY="risto-m-luukkonen"
 WANDB_SAVE_DIR="$OUTPUT_DIR/wandb"
 WANDB_PROJECT="moe_sweep_init_grid"
-WANDB_EXP_NAME="350M-GBS${GLOBAL_BATCH_SIZE}-MRT${MOE_ROUTER_TOPK}-LR${LR}-NE${NUM_EXPERTS}-${SLURM_JOB_NAME}-${SLURM_JOBID}"
+WANDB_EXP_NAME="llama3.1-8B-GBS${GLOBAL_BATCH_SIZE}-MRT${MOE_ROUTER_TOPK}-LR${LR}-NE${NUM_EXPERTS}-${SLURM_JOB_NAME}-${SLURM_JOBID}"
 
 
-megatron_path=Megatron-LM
-MODEL_CONFIG=configs/moe_scaling_sweep/models/flame-moe-100M-350M.sh
-# if OPTIMIZER=muon, use training_args_muon.sh
-if [ "$OPTIMIZER" = "muon" ]; then
-    TRAIN_DATA_CONFIG=configs/moe_scaling_sweep/training_args_muon.sh
-else
-    TRAIN_DATA_CONFIG=configs/moe_scaling_sweep/training_args.sh
-fi
+megatron_path=NVIDIA-Megatron-LM
+# take model config from command line
+MODEL_CONFIG=${1:-configs/llama3.1-8B.sh}
+
+
+# TRAIN_DATA_CONFIG=configs/moe_scaling_sweep/training_args.sh
 
 source environment.sh
 source $MODEL_CONFIG
-source $TRAIN_DATA_CONFIG
-CONTAINER="../../containers/primus_v26.1.sif"
-
-
+# source $TRAIN_DATA_CONFIG
+# CONTAINER="../../containers/primus_v26.1.sif"
+CONTAINER="/shared_silo/scratch/containers/rocm_primus_v25.11_transformers-4.5.7_linear_FA.sif"
 # read args from arrays $MODEL_ARGS and $TRAINING_ARGS
 echo "ARGS: ${MODEL_ARGS[*]} ${TRAINING_ARGS[*]} ${DATA_ARGS[*]} ${OUTPUT_ARGS[*]}"
 echo "START $SLURM_JOBID: $(date)"
 
-# first install Emerging-Optimizers
-# srun --label --pty apptainer exec --rocm \
-#     "$CONTAINER" \
-#     git clone https://github.com/NVIDIA-NeMo/Emerging-Optimizers.git
-# cd Emerging-Optimizers
-# pip install .
-
-# Then run the training
+# echo "Running training..." \
 srun --label \
-    apptainer exec --rocm \
+    apptainer exec --rocm --overlay "/shared_silo/scratch/rluukkon/overlays/torchtitan-primus-26.1.img:ro" \
     "$CONTAINER" \
     "$LAUNCH_SCRIPT" \
     "${megatron_path}/pretrain_gpt.py" \
     "${MODEL_ARGS[@]}" \
     "${TRAINING_ARGS[@]}" \
     "${DATA_ARGS[@]}" \
-    "${OUTPUT_ARGS[@]}"
+    "${OUTPUT_ARGS[@]}" \
+    --exit-interval 10
+
 
 echo "END $SLURM_JOBID: $(date)"

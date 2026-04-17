@@ -33,7 +33,7 @@ DATA_ARGS=(
 
 TRAINING_ARGS=(
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --no-async-tensor-model-parallel-allreduce
+    # --no-async-tensor-model-parallel-allreduce
     --no-masked-softmax-fusion
     --no-gradient-accumulation-fusion
     --no-bias-dropout-fusion
