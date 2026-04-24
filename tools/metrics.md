@@ -213,7 +213,7 @@ when you compare layers with very different `total_routed_selections`.
 Laplace smoothing $\alpha$ (e.g. $10^{-6}$ of the mean count) before computing KL
 or symmetric KL. JS does not need this in principle, but smoothing also makes
 $c_i$ more stable for low-traffic experts.
-- **Per-layer baselines.** The same value of $\matrm{JS}$ means different things
+- **Per-layer baselines.** The same value of $\mathrm{JS}$ means different things
 for layers with very different baseline imbalance. A useful normalization is
 $\mathrm{JS}(p, q) / \mathrm{JS}_w(p^{(\ell)})$: how much a *pair* of
 languages contributes to the all-language divergence at that layer.
