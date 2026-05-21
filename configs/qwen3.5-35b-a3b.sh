@@ -23,6 +23,7 @@
 : "${EXPERT_MODEL_PARALLEL_SIZE:=8}"
 
 MODEL_ARGS=(
+    # --moe-grouped-gemm
     --tokenizer-type HuggingFaceTokenizer
     --tokenizer-model Qwen/Qwen3.5-35B-A3B-Base
     --num-layers 40
@@ -39,6 +40,7 @@ MODEL_ARGS=(
     --attention-softmax-in-fp32
     --max-position-embeddings 262144
     --seq-length "${SEQ_LENGTH}"
+    --max-position-embeddings 262144
     --position-embedding-type rope
     --rotary-base 10000000
     --rotary-percent 0.25
@@ -48,6 +50,7 @@ MODEL_ARGS=(
     --hidden-dropout 0.0
     --normalization RMSNorm
     --norm-epsilon 1e-6
+    --apply-layernorm-1p
     --bf16
     --swiglu
     --untie-embeddings-and-output-weights
@@ -65,11 +68,12 @@ MODEL_ARGS=(
     --moe-router-topk 8
     --moe-ffn-hidden-size 512
     --moe-shared-expert-intermediate-size 512
-    --moe-router-load-balancing-type aux_loss
+    --moe-shared-expert-gate
+    --moe-router-load-balancing-type global_aux_loss
     --moe-aux-loss-coeff 0.001
     --moe-router-dtype fp32
-    --mtp-num-layers 1
-    --mtp-loss-scaling-factor 0.1
+    # --mtp-num-layers 1
+    # --mtp-loss-scaling-factor 0.1
     --use-distributed-optimizer
     --no-create-attention-mask-in-dataloader
 )
@@ -86,19 +90,19 @@ if [ -z "${LR_WSD_DECAY_ITERS:-}" ]; then
 fi
 
 TRAINING_ARGS=(
-    --micro-batch-size 1
-    --global-batch-size 16
+    --micro-batch-size 2
+    --global-batch-size 128
     # --no-async-tensor-model-parallel-allreduce
     --no-masked-softmax-fusion
     --no-gradient-accumulation-fusion
     --no-bias-dropout-fusion
     # --no-rope-fusion
     --distributed-timeout-minutes 60
-    --tensor-model-parallel-size 2
+    --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
     --expert-model-parallel-size "${EXPERT_MODEL_PARALLEL_SIZE}"
     --expert-tensor-parallel-size 1
-    --context-parallel-size 8
+    --context-parallel-size 1
     --sequence-parallel
     --use-distributed-optimizer
     --optimizer adam
@@ -127,5 +131,5 @@ TRAINING_ARGS=(
     --auto-detect-ckpt-format
     --make-vocab-size-divisible-by 256
     --dataloader-type single
-    --num-workers 2
+    --num-workers 7
 )

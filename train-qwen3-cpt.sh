@@ -3,10 +3,10 @@
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
 #SBATCH --gpus-per-node=8
-#SBATCH --nodes=8
+#SBATCH --nodes=1
 #SBATCH --mem=0
 #SBATCH --partition=amd-tw-verification
-#SBATCH --time=0-00:05:00
+#SBATCH --time=0-00:15:00
 #SBATCH --exclusive
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
@@ -31,7 +31,7 @@ export WORLD_SIZE=$SLURM_NTASKS
 
 BASE_DIR=/shared_silo/scratch/rluukkon/oellm/oellm_fsdp
 OUTPUT_DIR=checkpoints/
-CHECKPOINT_PATH=$OUTPUT_DIR/qwen3-30b-a3b-bridge-test
+CHECKPOINT_PATH=$OUTPUT_DIR/qwen3-35B-A3B-Base-bridge-test
 # TENSORBOARD_DIR=$OUTPUT_DIR/tensorboard/$SLURM_JOB_NAME-$SLURM_JOBID
 
 # Load OELLM checkpoint weights (fresh optimizer for new dataset)
@@ -59,9 +59,9 @@ COOLDOWN_FRACTION=1/5
 GLOBAL_BATCH_SIZE=128
 MICRO_BATCH_SIZE=1  
 
-# SEQ_LENGTH=65536 # 13
+SEQ_LENGTH=8192 # 13
 # SEQ_LENGTH=131072 # 13
-SEQ_LENGTH=262144 # 13
+# SEQ_LENGTH=262144 # 13
 # Calculate TRAIN_ITERS from TRAIN_TOKENS
 TRAIN_TOKENS=${TRAIN_TOKENS//_}    # drop "_" for bash math
 ITER_TOKENS=$((SEQ_LENGTH * GLOBAL_BATCH_SIZE))
@@ -87,23 +87,29 @@ source environment.sh
 source configs/qwen3.5-35b-a3b.sh
 
 DATA_ARGS=(
-    --data-path /shared_silo/scratch/rluukkon/preprocessed_data/wikipedia_20220301.en.valid.jsonl.preprocessed_text_document
+    # --data-path /shared_silo/scratch/rluukkon/preprocessed_data/wikipedia_20220301.en.valid.jsonl.preprocessed_text_document
+    --data-path /shared_silo/scratch/mika/experiments/dataset/simple-wikipedia/train
     --data-cache-path ../data_cache
 )
 LOAD_ARGS=(
+    --load /shared_silo/scratch/rluukkon/oellm/Megatron-Bridge/megatron_ckpt/Qwen3.5-35B-A3B-Base
+    --ckpt-format torch_dist
     # --load /shared_silo/scratch/rluukkon/Megatron-Bridge/checkpoints/qwen3-30b-a3b-bridge-test
-    # --ckpt-format torch_dist
-    # --no-load-optim
-    # --no-load-rng
-    # --finetune
+    --no-load-optim
+    --no-load-rng
+    --finetune
 )
-
+export WANDB_MODE=online
 # read args from arrays $MODEL_ARGS and $TRAINING_ARGS
 echo "ARGS: ${MODEL_ARGS[*]} ${TRAINING_ARGS[*]} ${DATA_ARGS[*]} ${LOAD_ARGS[*]}"
-CONTAINER=/shared_silo/scratch/containers/rocm_primus_v25.11_transformers-4.5.7_linear_FA.sif
+# CONTAINER=/shared_silo/scratch/containers/rocm_primus_v25.11_transformers-4.5.7_linear_FA.sif
+CONTAINER="/shared_silo/scratch/containers/primus_v26.1.sif"
+overlay="fla-overlay.img:ro"
+# CONTAINER=/shared_silo/scratch/containers/build-rocm_primus_v25.11_transformers-5.5.4_linear_FA/rocm_primus_v25.11_transformers-5.5.4_linear_FA.sif
 echo "START $SLURM_JOBID: $(date)"
 srun --label \
     apptainer exec --rocm \
+    --overlay $overlay \
     "$CONTAINER" \
     "$LAUNCH_SCRIPT" \
     "${megatron_path}/pretrain_gpt.py" \
@@ -111,7 +117,8 @@ srun --label \
     "${TRAINING_ARGS[@]}" \
     "${DATA_ARGS[@]}" \
     "${LOAD_ARGS[@]}" \
-    # --exit-interval 2 \
+    --wandb-project "moe-exploration" \
+    --wandb-exp-name "qwen3_5_35B_A3B_tw_test_${SLURM_JOB_ID}_megatron_launcher" \
     --save $CHECKPOINT_PATH
 
 echo "END $SLURM_JOBID: $(date)"
