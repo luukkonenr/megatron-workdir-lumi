@@ -25,7 +25,8 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1 #This is needed for sequence paralellism
 export CC=gcc-12
 export CXX=g++-12
 # SINGULARITY 
-CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
+# sCONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
+CONTAINER="/scratch/project_462000963/users/rluukkon/container_cache/MegatronTrainingLumi_x86_64.sif"
 export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
 # CHECKPOINT_PATH=checkpoints/flame-moe-419m-12872205/
 # CHECKPOINT_PATH=c"checkpoints/flame-moe-290m-12969781/"
@@ -49,44 +50,32 @@ echo Final results will be saved to: $OUTPUT_FILE
 export PYTHONPATH=$PYTHONPATH:lm-evaluation-harness
 export PYTHONPATH=$PYTHONPATH:NVIDIA-Megatron-LM
         # --use-mp-args-from-checkpoint-args # use model parallel args from checkpoint
-megatron_arguments=(--load $CHECKPOINT_PATH
+megatron_arguments=(
+        --load $CHECKPOINT_PATH
+        --use-checkpoint-args # use model args from checkpoint
         --no-load-optim 
         --no-load-rng 
         --max-tokens-to-oom 40000
-        --use-checkpoint-args # use model args from checkpoint
-        --micro-batch-size 1
+        --micro-batch-size 2
+        --use-legacy-static-engine
         --bf16
         --use-flash-attn
         --qk-layernorm
+        --use-legacy-static-engine
+        --dist-ckpt-strictness log_unexpected
         --tokenizer-type HuggingFaceTokenizer
         )
         # --rotary-base 500000
 
-# install sqlitedict if not already installed
-srun --label \
-    singularity exec \
-    -B ${PWD} \
-    $CONTAINER \
-    pip install --user sqlitedict more-itertools
 
 
 # TASKS="arc_easy,arc_challenge,piqa,hellaswag,openbookqa,mmlu,lambada_openai,winogrande,boolq,commonsense_qa"
-TASKS="hellaswag"
-NUM_FEWSHOT=0
 srun --label \
     singularity exec \
     -B ${PWD} \
     $CONTAINER \
     ./launcher.sh \
-    ${workdir}/lm-evaluation-harness/lm_eval/__main__.py \
-    --model megatron_lm \
-    "${megatron_arguments[@]}" \
-    --num_fewshot $NUM_FEWSHOT \
-    --verbosity DEBUG \
-    --tasks "$TASKS" \
-    --batch_size 16 \
-    --output_path "${OUTPUT_FILE}"
-
+    ${workdir}/NVIDIA-Megatron-LM/tools/run_text_generation_server.py ${megatron_arguments[@]}
     
 #     # --output_path $RANDOM_DIR \
 # python lm_eval --model_args "pretrained=$MODEL,trust_remote_code=True" --device cuda:0 --batch_size 32 --tasks "$TASKS" --num_fewshot 0 --output_path results    

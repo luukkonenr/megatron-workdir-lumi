@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=meglm-qwen3-dev
+#SBATCH --job-name=meglm-qwen3-dev-small
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
 #SBATCH --nodes=1
@@ -93,7 +93,7 @@ echo "Using container: $CONTAINER"
 BIND_DIRS="/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd"
 
 # Avoid conflicts with $HOME/.local
-export PYTHONUSERBASE=""
+export PYTHONUSERBASE=".local"
 
 # Compilers in the container
 export CC=gcc-12
@@ -174,18 +174,15 @@ export NCCL_TUNER_PLUGIN=/tuner/librccl-tuner.so
 ######################################################################
 
 # DATA
-#DATA_ROOT="/scratch/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
 # DATA_ROOT="/scratch/project_462000963/users/vitiugin/data_tok/hplt3_eng_cleaned_sample/hplt3c_eng_Latn_sample"
-# DATA_CACHE_PATH
-# DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
 # DATA_PATH="1.0 ${DATA_ROOT}/merged"
 # DATA_CACHE_PATH="$DATA_ROOT/cache"
-# TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
-TOKENIZER_MODEL="google/gemma-3-27b-pt"
+
+TOKENIZER_MODEL="EleutherAI/gpt-neox-20b"
 
 SEQ_LENGTH=4096
 
-PROFILE=0
+PROFILE=1
 
 # OPTIMIZER
 ADAM_BETA1=0.9
@@ -265,7 +262,7 @@ MODEL_ARGS=(
     --use-mcore-models
     --disable-bias-linear
     --max-position-embeddings 32768
-    --num-layers 14
+    --num-layers 28
     --hidden-size 1024
     # --ffn-hidden-size 6144
     --moe-ffn-hidden-size 672
@@ -298,9 +295,8 @@ MOE_ARGS=(
     --moe-grouped-gemm
     # --moe-permute-fusion # TE version conflict
     --moe-token-dispatcher-type alltoall
-    --overlap-param-gather
-    --overlap-grad-reduce
     --moe-router-force-load-balancing
+    --disable-gloo-process-groups
 )
 
 
@@ -312,8 +308,9 @@ MODEL_ARGS+=(
     --no-gradient-accumulation-fusion
     --no-bias-dropout-fusion
     --no-rope-fusion    # buggy on AMD, do not enable without validating
-    --distributed-timeout-minutes 30
+    --overlap-param-gather
     --overlap-grad-reduce
+    --distributed-timeout-minutes 30
 )
 
 OPTIMIZER_ARGS=(
@@ -343,14 +340,14 @@ OUTPUT_ARGS=(
 
 PARALLEL_ARGS=(
     # --tensor-model-parallel-size 1
-    --expert-model-parallel-size 1
+    # --expert-model-parallel-size 1
 #    --expert-tensor-parallel-size 1
 #    --use-torch-fsdp2
     --use-distributed-optimizer
     --sequence-parallel
-    --pipeline-model-parallel-size 4
-    --decoder-first-pipeline-num-layers 3
-    --decoder-last-pipeline-num-layers 3 
+    --pipeline-model-parallel-size 2
+    # --decoder-first-pipeline-num-layers 3
+    # --decoder-last-pipeline-num-layers 3 
 #    --num-layers-per-virtual-pipeline-stage 2
 #    --tp-comm-overlap
     --context-parallel-size 1
@@ -367,23 +364,25 @@ fi
 if [ "$PROFILE" = "1" ]; then
     PROFILE_ARGS=(
         --profile
-	--use-pytorch-profiler
-	--profile-ranks 0
-	--profile-step-start 5
-	--profile-step-end 7
+        --use-pytorch-profiler
+        --profile-ranks 0
+        --profile-step-start 5
+        --profile-step-end 7
+        --record-memory-history
+        --memory-snapshot-path "${TENSORBOARD_DIR}/memory_snapshot.pickle"
     )
 else
     PROFILE_ARGS=()
 fi
 
 CHECKPOINT_ARGS=(
-    --ckpt-format torch
-#     --async-save    # requires --ckpt-format torch_dist
+    --ckpt-format torch_dist
+    --async-save    # requires --ckpt-format torch_dist
 #    --load "$CHECKPOINT_PATH"
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
 )
-MEGATRON_PATH="Megatron-LM-nvidia"
+MEGATRON_PATH="NVIDIA-Megatron-LM"
 COMMAND=" \
     ${MEGATRON_PATH}/pretrain_gpt.py \
     "${MODEL_ARGS[@]}" \

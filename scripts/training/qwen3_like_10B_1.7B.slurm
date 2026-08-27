@@ -4,7 +4,8 @@
 #SBATCH --ntasks-per-node=8
 #SBATCH --nodes=8
 #SBATCH --mem=480G
-#SBATCH --partition=dev-g
+#SBATCH --partition=standard-g
+##SBATCH --partition=dev-g
 #SBATCH --time=10:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
@@ -78,10 +79,10 @@ ln -sf "${logfile_basename}.err" "logs/latest.err"
 module purge
 
 # Dedicated LUMI container with most of what we need for LLM training
-CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+# CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
 #CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.0.sif
 # CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
-# CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
 echo "Using container: $CONTAINER"
 
 # Directories to map into container
@@ -380,7 +381,7 @@ CHECKPOINT_ARGS=(
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
 )
-MEGATRON_PATH="Megatron-LM"
+MEGATRON_PATH="Megatron-LM-new"
 COMMAND=" \
     ${MEGATRON_PATH}/pretrain_gpt.py \
     "${MODEL_ARGS[@]}" \
@@ -406,7 +407,7 @@ echo '===================================='
 
 echo "START $SLURM_JOBID: $(date)"
 echo "SLURM_NNODES: $SLURM_NNODES"
-echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
+# echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
 
 srun \
     --label \

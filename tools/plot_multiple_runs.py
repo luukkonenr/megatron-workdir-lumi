@@ -22,8 +22,9 @@ def plot_by_key(key, val_dict, out_dir: Path, plot_by):
     annotation_positions = []  # track used y positions for annotations
     for k, vals in val_dict.items():
         path = k.name
-
         y = vals.get(key)
+        if type(y)==int:
+            assert y==-1, f"Key '{key}' does not exist"
         if not isinstance(y, (list, np.ndarray)):
             continue
         n = len(y)
@@ -32,13 +33,14 @@ def plot_by_key(key, val_dict, out_dir: Path, plot_by):
         elif plot_by == 'time':
             x = np.linspace(0, vals.get('training_hours'), n)
         elif plot_by == 'gpuh':
-            x = np.linspace(0, vals.get('training_hours')*vals.get('world_size'), n)
+            x = np.linspace(0, vals.get('training_hours')*vals.get('world_size')/2, n)
         plt.plot(x, y, label=f'{path}-{key}', linewidth=2)
         last_x = x[-1]; last_y = y[-1]
         plt.grid(True, linestyle='--', alpha=0.6)
         plt.ylabel(key, fontsize=12)
-        plt.ylim(1,8)
-        plt.yscale('log')
+        if key == 'lm loss':
+            plt.ylim(1,8)
+            plt.yscale('log')
         plt.xlabel(plot_by)
         plt.xticks(fontsize=10)
         plt.yticks(fontsize=10)
@@ -76,7 +78,6 @@ def parse_args():
     p.add_argument("--keys", nargs="+", default=["lm loss"], help="Metric keys to plot.")
     p.add_argument("--extra-keys", nargs="*", default=["validation_loss"], help="Additional keys to extract (not necessarily plotted).")
     p.add_argument("--plot-by", choices=["iters", "time", "gpuh"], help="Plot x-axis by training iters, walltime in hours or total spent gpuh (excluding initialization). ")
-    # p.add_argument("--time-in-minutes", type=int, default=3600)
     return p.parse_args()
 
 def main():
@@ -92,6 +93,7 @@ def main():
             continue
         # Include all requested keys so extraction collects needed data
         extract_keys = list(set(args.keys + args.extra_keys))
+
         vals = extract_values(p, False, *extract_keys)[0]
         logs[path_obj] = vals
 

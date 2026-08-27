@@ -2,7 +2,7 @@
 #SBATCH --job-name=meglm-qwen3-dev
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=4
+#SBATCH --nodes=16
 #SBATCH --mem=480G
 #SBATCH --partition=dev-g
 #SBATCH --time=10:00
@@ -297,6 +297,7 @@ MOE_ARGS=(
     --overlap-param-gather
     --overlap-grad-reduce
     --moe-router-force-load-balancing
+    --disable-gloo-process-groups
 )
 
 
@@ -371,7 +372,7 @@ else
 fi
 
 CHECKPOINT_ARGS=(
-    --ckpt-format torch
+    # --ckpt-format torch
 #     --async-save    # requires --ckpt-format torch_dist
 #    --load "$CHECKPOINT_PATH"
 #    --save "$CHECKPOINT_PATH"

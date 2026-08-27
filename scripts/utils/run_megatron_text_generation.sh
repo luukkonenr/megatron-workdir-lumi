@@ -8,7 +8,7 @@
 #SBATCH --time=1:00:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=2
-#SBATCH --account=project_462000353
+#SBATCH --account=project_462000963
 #SBATCH -o logs/%x-%j.out
 #SBATCH -e logs/%x-%j.err
 
@@ -51,7 +51,7 @@ SEQ_LEN="${SEQ_LEN:-2048}"
 PAD_LEN=2048
 TP=${TP:-1}
 ETP=${ETP:-1}
-PP=${PP:-2}
+PP=${PP:-1}
 CP=${CP:-1}
 EP=${EP:-1}
 SP=true
@@ -64,8 +64,8 @@ TRAIN_ITERS=47684 # 100B tokens with 4M batch size
 LR_WARMUP_ITERS=400 # 2000 in olmoe
 LR_DECAY_ITERS=$(( ${TRAIN_ITERS} - ${LR_WARMUP_ITERS}))
 SAVE_INTERVAL=4770
-CHECKPOINT_PATH=checkpoint-11218265-2048-1024/
-load_options="--load $CHECKPOINT_PATH --no-load-optim --no-load-rng"
+# CHECKPOINT_PATH=checkpoint-11218265-2048-1024/
+# load_options="--load $CHECKPOINT_PATH --no-load-optim --no-load-rng"
 #OMP THREADING
 export OMP_NUM_THREADS=1
 export HSA_ENABLE_SDMA=0
@@ -124,11 +124,11 @@ comm_overlap_option=" \
     --overlap-param-gather"
 
         # --max-padding-length ${PAD_LEN} \
+    # --log-batch-size-to-tensorboard \
 megatron_options="  \
     --tensorboard-queue-size 1 \
     --tensorboard-dir $TENSORBOARD_PATH \
     --log-timers-to-tensorboard \
-    --log-batch-size-to-tensorboard \
     --log-validation-ppl-to-tensorboard \
 	--use-flash-attn \
     --sequence-parallel \
@@ -194,11 +194,11 @@ megatron_options="  \
     # --num-shared-experts ${NUM_SHARED_EXPERTS} \
 
     # --moe-shared-expert-intermediate-size  $((${NUM_SHARED_EXPERTS} * ${MOE_INTERMEDIATE_SIZE})) \
+    # --attention-sink-k ${ATTENTION_SINK_K} \
 moe_options=" \
     ${moe_options} \
     --moe-grouped-gemm \
     --qk-layernorm \
-    --attention-sink-k ${ATTENTION_SINK_K} \
     --moe-ffn-hidden-size ${MOE_INTERMEDIATE_SIZE} \
     --moe-layer-freq ${MOE_LAYER_FREQ} \
     --moe-router-load-balancing-type aux_loss \
@@ -225,9 +225,10 @@ elif [ $AC = none ]; then
     "
 fi
 
-
-arguments="${megatron_options} ${pr_options} ${load_options} ${activation_checkpoint_options} \
- ${do_options} ${sp_options} ${moe_options} ${offload_option} ${comm_overlap_option} ${sft_option} ${vp_options} ${flash_options} ${profile_options} ${LOGGING_ARGS}"
+# ${load_options} \
+arguments="${megatron_options} ${pr_options} \
+    ${activation_checkpoint_options} \
+    ${do_options} ${sp_options} ${moe_options} ${offload_option} ${comm_overlap_option} ${sft_option} ${vp_options} ${flash_options} ${profile_options} ${LOGGING_ARGS}"
 
 c="fe"
 # Bind mask for one thread per core
@@ -237,15 +238,16 @@ echo "START $SLURM_JOBID: $(date)"
 echo "NNODES" $SLURM_NNODES
 echo "CPUS PER TASK" $SLURM_CPUS_PER_TASK
 
-CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+# CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+CONTAINER="/scratch/project_462000963/users/rluukkon/container_cache/MegatronTrainingLumi_x86_64.sif"
 export SINGULARITY_BIND=/pfs,/scratch,/projappl,/project,/flash,/appl,/usr/lib64/libjansson.so.4,/usr/lib64/libcxi.so.1,/opt/cray,/var/spool/slurmd
 export PWD=(`pwd -P`)
 
 # Avoid conflicts with $HOME/.local
 export PYTHONUSERBASE="Megatron-LM/megatron_inference_dev"
 
-launcher="$PWD/dev_launcher.sh"
-program=Megatron-LM/tools/run_text_generation_server.py
+launcher="$PWD/launcher.sh"
+program=NVIDIA-Megatron-LM/tools/run_text_generation_server.py
 echo "Using --cpu-bind=mask_cpu:$BIND_MASK"
 # srun --label --cpu-bind=mask_cpu:$BIND_MASK \
 srun --label \

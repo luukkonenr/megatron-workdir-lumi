@@ -7,6 +7,7 @@ import datetime
 SKIPPED_LINES = 2
 TFLOPS_LABEL = "throughput per GPU (TFLOP/s/GPU)"
 ELAPSED_TIME_LABEL="elapsed time per iteration (ms)"
+LEARNING_RATE_LABEL = "learning rate"
 
 ITER_LINE_RE = re.compile(r".*iteration\s+(\d+)\/")
 ITER_SPLIT_RE = re.compile(r'\.\.\.+')
@@ -132,6 +133,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
 
     if not args:
         return None
+    
     WORLD_SIZE = int(args["world_size"])
     seq_len = args["seq_length"]
     batch_size = args["global_batch_size"]
@@ -148,6 +150,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         loss_end = loss[-1]
     tflops = get_key(TFLOPS_LABEL, throughput)
     mem_usages = get_key("mem usages", throughput)
+    learning_rate = get_key(LEARNING_RATE_LABEL, throughput)
     # check if fsdp-key exists
     fsdp_key = 'use_torch_fsdp2'
 
@@ -157,6 +160,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         args['fsdp'] = args[fsdp_key]
     if return_loss_min_max:
         loss = (loss_start, loss_end)
+        learning_rate = (max(learning_rate), min(learning_rate))
 
     
     
@@ -164,6 +168,7 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "tgs": tgs,
         "tflops": tflops,
         "mem_usages": mem_usages,
+        "learning_rate": learning_rate,
         "seq_len": seq_len,
         "micro_batch_size": args['micro_batch_size'],
         "batch_size": batch_size,
@@ -189,10 +194,11 @@ def extract_values(filepath, return_loss_min_max=True, *extra_args):
         "log_interval": args['log_interval'],
         "data_path": args['data_path'],
         "filename": filepath, 
+
         }
     
     # add optional args from args
-    extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args }
+    extra_args = {arg_name: get_key(arg_name, throughput) for arg_name in extra_args if arg_name not in result.keys()}
     result.update(extra_args)
     
     return result, len(tgs)
@@ -217,9 +223,9 @@ def main(argv):
             print(f"{key}: {value}", end=", ")
 
     ### print throughput numbers
-    row_format = "{:<10} | {:<10.2f} | {:<10.2f} | {:<10.2f}"
-    header_format = "{:<10} | {:<10} | {:<10} | {:<10}"
-    header = header_format.format(" ", "TGS", "TFLOPs", "mem usages")
+    row_format = "{:<10} | {:<10.2f} | {:<10.2f} | {:<10.2f} | {:<10.6e}"
+    header_format = "{:<10} | {:<10} | {:<10} | {:<10} | {:<10}"
+    header = header_format.format(" ", "TGS", "TFLOPs", "mem usages", "lr")
     separator = "-" * len(header)
     if log_lines > 1:
         print("")
@@ -227,10 +233,10 @@ def main(argv):
         print(separator)
         print(header)
         print(separator)
-        print(row_format.format("mean", np.mean(values['tgs']), np.mean(values['tflops']), np.mean(values['mem_usages'])))
-        print(row_format.format("std", np.std(values['tgs']), np.std(values['tflops']), np.std(values['mem_usages'])))
-        print(row_format.format("max", np.max(values['tgs']), np.max(values['tflops']), np.max(values['mem_usages'])))
-        print(row_format.format("min", np.min(values['tgs']), np.min(values['tflops']), np.min(values['mem_usages'])))
+        print(row_format.format("mean", np.mean(values['tgs']), np.mean(values['tflops']), np.mean(values['mem_usages']), np.mean(values['learning_rate'])))
+        print(row_format.format("std", np.std(values['tgs']), np.std(values['tflops']), np.std(values['mem_usages']), np.std(values['learning_rate'])))
+        print(row_format.format("max", np.max(values['tgs']), np.max(values['tflops']), np.max(values['mem_usages']), np.max(values['learning_rate'])))
+        print(row_format.format("min", np.min(values['tgs']), np.min(values['tflops']), np.min(values['mem_usages']), np.min(values['learning_rate'])))
     else:
         print(f"Found {log_lines} logs lines, not enough")
     

@@ -2,10 +2,10 @@
 #SBATCH --job-name=meglm-qwen3-dev-235B
 #SBATCH --cpus-per-task=7
 #SBATCH --ntasks-per-node=8
-#SBATCH --nodes=32
+#SBATCH --nodes=16
 #SBATCH --mem=480G
 #SBATCH --partition=standard-g
-#SBATCH --time=00:15:00
+#SBATCH --time=15:00
 #SBATCH --exclusive
 #SBATCH --gpus-per-node=8
 #SBATCH --account=project_462000963
@@ -13,8 +13,12 @@
 #SBATCH --error logs/%j.err
 
 # This is a slurm script for training generative models on LUMI using
-# Megatron-LM pretrain_gpt.py. 
-
+# Megatron-LM pretrain_gpt.py. This script defines defaults for
+# training a FineWeb-like model (approx. 1.7B parameters) and is
+# intended to be reasonably easily modified for other model sizes
+# by editing the variables defined in the "MODEL AND PRETRAINING
+# CONFIGURATION" section below.
+#
 # Note that while the script defines default arguments for sbatch
 # in the #SBATCH comments above, you can override any of these on the
 # command line. For example, to run on 16 nodes:
@@ -52,12 +56,8 @@ set -euo pipefail
 # and include timestamp to avoid this.
 timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
 logfile_basename="${SLURM_JOB_NAME}-${SLURM_JOBID}-${timestamp}"
-# check for existence of logs/SLURM_JOBID.out and .err
-if [ -f "logs/${SLURM_JOBID}.out" ] || [ -f "logs/${SLURM_JOBID}.err" ]; then
-    echo "Renaming existing logs for restarted job ${SLURM_JOBID}"
-    mv -f "logs/${SLURM_JOBID}.out" "logs/${logfile_basename}.out"
-    mv -f "logs/${SLURM_JOBID}.err" "logs/${logfile_basename}.err"
-fi
+mv -f "logs/${SLURM_JOBID}.out" "logs/${logfile_basename}.out"
+mv -f "logs/${SLURM_JOBID}.err" "logs/${logfile_basename}.err"
 
 # Check if this is a restared run and if so, print the failure
 # events/reasons for failed nodes. (This relies on "logs/latest.err"
@@ -82,10 +82,11 @@ ln -sf "${logfile_basename}.err" "logs/latest.err"
 module purge
 
 # Dedicated LUMI container with most of what we need for LLM training
-# CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
+CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0.sif
 #CONTAINER=/appl/local/containers/sif-images/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.0.sif
 # CONTAINER=/pfs/lustrep2/scratch/project_462000353/risto/containers/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.6.0-tev.2.2.0dev.sif
-CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+# CONTAINER=/appl/local/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
+# CONTAINER=/scratch/project_462000394/containers/for-turkunlp-team/lumi-pytorch-rocm-6.2.4-python-3.12-pytorch-v2.7.1-te-dockerhash-560b76ceab56.sif
 echo "Using container: $CONTAINER"
 
 # Directories to map into container
@@ -111,24 +112,11 @@ TENSORBOARD_DIR="$OUTPUT_DIR/tensorboard/$SLURM_JOB_NAME-$SLURM_JOBID"
 mkdir -p "$CHECKPOINT_PATH"    # This needs to exist
 
 # Script that is used to launch on GPU nodes
-# Sets rank-specific env variables, most importantly:
-#  export RANK=$SLURM_PROCID
-#  export LOCAL_RANK=$SLURM_LOCALID
-#  python3 -u "$@"
 LAUNCH_SCRIPT="$BASE_DIR/launcher.sh"
 
 # Needed for sequence paralellism
 # (see https://github.com/NVIDIA/Megatron-LM/issues/533)
 export CUDA_DEVICE_MAX_CONNECTIONS=1
-
-# PyTorch distributed settings for large-scale runs
-# export TORCH_DISTRIBUTED_DEBUG=DETAIL  # Detailed debug info for init failures
-# export TORCH_CPP_LOG_LEVEL=INFO
-# export TORCH_NCCL_ASYNC_ERROR_HANDLING=0  # Better error reporting
-export TORCH_SHOW_CPP_STACKTRACES=0  # Enable for debugging segfaults
-# export NCCL_DEBUG=INFO  # Show warnings during init
-
-export TORCH_DISTRIBUTED_INIT_TIMEOUT=7200  # 2 hours for init
 
 # DISTRIBUTED ARGS
 # These are used by torch.distributed to allow the different processes
@@ -144,22 +132,12 @@ export OMP_NUM_THREADS=1    # OMP_NUM_THREADS=1 is the safe option
 export HSA_ENABLE_SDMA=0
 export HSA_ENABLE_IPC_MODE_LEGACY=0
 
-# ROCm/HIP settings for stability with many processes
-export HSA_NO_SCRATCH_RECLAIM=1
-export GPU_MAX_HW_QUEUES=8
-
-# Increase system limits for high process group counts (needed for PP=32)
-# ulimit -n 65536  # file descriptors
-# ulimit -s unlimited  # stack size
-# ulimit -m unlimited  # max memory size
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True
-
 # This setting is reported to provide a performance improvement
 # (https://arxiv.org/pdf/2408.14090v1) but as of April 2025 is causing
 # training instability on LUMI with pipeline parallelism.
 # (see https://github.com/spyysalo/lumi-fineweb-replication/issues/1)
-# export NCCL_NCHANNELS_PER_PEER=32 
-# export NCCL_MIN_NCHANNELS=$NCCL_NCHANNELS_PER_PEER
+export NCCL_NCHANNELS_PER_PEER=32 
+export NCCL_MIN_NCHANNELS=$NCCL_NCHANNELS_PER_PEER
 
 # Set interfaces to be used by RCCL.
 # This is needed as otherwise RCCL tries to use a network interface it has
@@ -169,14 +147,11 @@ export NCCL_NET_GDR_LEVEL=PHB
 #export NCCL_DMABUF_ENABLE=1
 export HSA_FORCE_FINE_GRAIN_PCIE=1
 
-# Help with distributed initialization for large process counts
-export NCCL_TIMEOUT=3600  # Increase timeout for init (in seconds)
-export NCCL_IB_TIMEOUT=50  # Increase IB timeout
-export GLOO_SOCKET_IFNAME=hsn0  # Ensure Gloo uses correct interface if needed
-
 # DEBUGGING, INCREASE VERBOSITY IN LOGS
 # export MIOPEN_ENABLE_LOGGING=1
 #export PYTHONWARNINGS=ignore
+# export TORCH_SHOW_CPP_STACKTRACES=1
+#export NCCL_DEBUG=INFO
 # export RCCL_KERNEL_COLL_TRACE_ENABLE=1
 # export NCCL_DEBUG_SUBSYS=ALL
 # export NCCL_DEBUG_FILE=$OUTPUT_DIR/nccl-debug-${SLURM_JOB_NAME}-${SLURM_JOBID}.log #Move verbose nccl logging to its own file
@@ -204,13 +179,12 @@ export NCCL_TUNER_PLUGIN=/tuner/librccl-tuner.so
 # DATA_ROOT="/flash/project_462000353/avirtanen/data-fineweb-mixtral/jsonl"
 # DATA_PATH="1.0 ${DATA_ROOT}/merged"
 # DATA_CACHE_PATH="$DATA_ROOT/cache"
+# TOKENIZER_MODEL="mistralai/Mixtral-8x7B-v0.1"
 TOKENIZER_MODEL="EleutherAI/gpt-neox-20b"
 
+SEQ_LENGTH=4096
 
-SEQ_LENGTH=1024
-# SEQ_LENGTH=4096
-
-PROFILE=0 # Don't include in throughput tests
+PROFILE=1
 
 # OPTIMIZER
 ADAM_BETA1=0.9
@@ -223,9 +197,9 @@ CLIP_GRAD=1.0
 WEIGHT_DECAY=1e-1
 
 # TRAINING
-GLOBAL_BATCH_SIZE=128
-MICRO_BATCH_SIZE=1 # optimize this 
-RECOMPUTATION=1
+GLOBAL_BATCH_SIZE=512
+MICRO_BATCH_SIZE=1
+RECOMPUTATION=0
 TRAIN_TOKENS=350_000_000_000    # TRAIN_SAMPLES computed from this
 
 # SAVING AND EVALUATION
@@ -290,18 +264,20 @@ MODEL_ARGS=(
     --use-mcore-models
     --disable-bias-linear
     --max-position-embeddings 32768
-    --num-layers 94
+    # --num-layers 94
+    --num-layers 46
+    # --num-layers 22
     --hidden-size 4096
+    # --ffn-hidden-size 6144
     --moe-ffn-hidden-size 1536
     --num-attention-heads 64
     --num-query-groups 4
     --group-query-attention
-    --init-method-std 0.02
+    --init-method-std 0.01
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --qk-layernorm
     --normalization RMSNorm
-    --norm-epsilon 1e-6
     --position-embedding-type rope
     --swiglu
     --untie-embeddings-and-output-weights
@@ -313,7 +289,7 @@ MODEL_ARGS=(
     --bf16
     --num-experts 128
     --moe-router-topk 8
-    --moe-router-dtype fp64 # fp64 uses native PyTorch implementation and thus avoid faulty TE-kernel on our LUMI environment. TODO: Investigate and fix the environment
+    --moe-router-dtype fp64
     --kv-channels 128
 )
 
@@ -321,13 +297,12 @@ MOE_ARGS=(
     --moe-router-load-balancing-type aux_loss
     --moe-aux-loss-coeff 0.001
     --moe-grouped-gemm
-    --moe-token-dispatcher-type alltoall
-    --moe-router-force-load-balancing # This simulates a fully load-balanced routing scenario. DO NOT USE for real training runs!
-    --disable-gloo-process-groups # Not sure about the impact. Helps with communication errors on LUMI.
-    # --moe-enable-deepep
     # --moe-permute-fusion # TE version conflict 
-    # --moe-router-fusion
-
+    --moe-token-dispatcher-type alltoall
+    --overlap-param-gather
+    --overlap-grad-reduce
+    --moe-router-force-load-balancing
+    --disable-gloo-process-groups
 )
 
 
@@ -341,7 +316,6 @@ MODEL_ARGS+=(
     --no-rope-fusion    # was buggy on AMD, do not enable without validating
     --distributed-timeout-minutes 30
     --overlap-grad-reduce
-    --overlap-param-gather
 )
 
 OPTIMIZER_ARGS=(
@@ -370,25 +344,26 @@ OUTPUT_ARGS=(
 
 
 PARALLEL_ARGS=(
-    --pipeline-model-parallel-size 16
+    # --tensor-model-parallel-size 1
+    # --pipeline-model-parallel-size 16
+    --pipeline-model-parallel-size 8
     --expert-model-parallel-size 8
     --decoder-first-pipeline-num-layers 5
     --decoder-last-pipeline-num-layers 5
+    # --expert-tensor-parallel-size 1
+#    --use-torch-fsdp2
     --use-distributed-optimizer
     --sequence-parallel
-    --context-parallel-size 2
-#    --use-torch-fsdp2
-#    --expert-tensor-parallel-size 2
-   --tensor-model-parallel-size 1
 #    --num-layers-per-virtual-pipeline-stage 2
 #    --tp-comm-overlap
+    --context-parallel-size 2
 )
 
 
 if [ "$RECOMPUTATION" = "1" ]; then
     MODEL_ARGS+=(
 	--recompute-activations
-	--recompute-granularity full
+	--recompute-granularity selective
     )
 fi
 
@@ -397,8 +372,8 @@ if [ "$PROFILE" = "1" ]; then
         --profile
         --use-pytorch-profiler
         --profile-ranks 0
-        --profile-step-start 5
-        --profile-step-end 7
+        --profile-step-start 1
+        --profile-step-end 3
         --record-memory-history
         --memory-snapshot-path "${TENSORBOARD_DIR}/memory_snapshot.pickle"
  
@@ -408,7 +383,8 @@ else
 fi
 
 CHECKPOINT_ARGS=(
-#    --async-save    # requires --ckpt-format torch_dist
+    # --ckpt-format torch
+#     --async-save    # requires --ckpt-format torch_dist
 #    --load "$CHECKPOINT_PATH"
 #    --save "$CHECKPOINT_PATH"
 #    --save-interval $SAVE_INTERVAL
@@ -439,7 +415,7 @@ echo '===================================='
 
 echo "START $SLURM_JOBID: $(date)"
 echo "SLURM_NNODES: $SLURM_NNODES"
-# echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
+echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
 
 srun \
     --label \
@@ -450,6 +426,8 @@ srun \
     -B "/scratch/project_462000394/containers/for-turkunlp-team/tuner-2025-07-09/librccl-tuner.so:/tuner/librccl-tuner.so" \
     "$CONTAINER" \
     "$LAUNCH_SCRIPT" \
-    $COMMAND
+    $COMMAND \
+    --exit-interval 6
+
 
 echo "END $SLURM_JOBID: $(date)"
